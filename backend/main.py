@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict
 import uvicorn
@@ -13,6 +14,8 @@ import re
 import google.generativeai as genai
 import firebase_admin
 from firebase_admin import credentials, firestore
+import requests
+from urllib.parse import urlencode, parse_qs
 # Create FastAPI instance
 app = FastAPI(
     title="Fast Python API",
@@ -1102,6 +1105,203 @@ async def get_skills(user_id: str):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error retrieving skills: {str(e)}")
+
+# LinkedIn OAuth Configuration
+LINKEDIN_CLIENT_ID = os.getenv("LINKEDIN_CLIENT_ID", "")
+LINKEDIN_CLIENT_SECRET = os.getenv("LINKEDIN_CLIENT_SECRET", "")
+LINKEDIN_REDIRECT_URI = os.getenv("LINKEDIN_REDIRECT_URI", "http://localhost:8000/api/linkedin/callback")
+LINKEDIN_SCOPE = "r_liteprofile r_emailaddress"  # Basic profile and email
+
+# LinkedIn OAuth - Get authorization URL
+@app.get("/api/linkedin/authorize")
+async def linkedin_authorize():
+    """Generate LinkedIn OAuth authorization URL"""
+    if not LINKEDIN_CLIENT_ID:
+        raise HTTPException(
+            status_code=500,
+            detail="LinkedIn Client ID not configured. Please set LINKEDIN_CLIENT_ID environment variable."
+        )
+    
+    # Generate state parameter for security (in production, use a proper session token)
+    import secrets
+    state = secrets.token_urlsafe(32)
+    
+    # Build authorization URL
+    params = {
+        "response_type": "code",
+        "client_id": LINKEDIN_CLIENT_ID,
+        "redirect_uri": LINKEDIN_REDIRECT_URI,
+        "state": state,
+        "scope": LINKEDIN_SCOPE,
+    }
+    
+    auth_url = f"https://www.linkedin.com/oauth/v2/authorization?{urlencode(params)}"
+    
+    return {
+        "auth_url": auth_url,
+        "state": state
+    }
+
+# LinkedIn OAuth - Handle callback
+@app.get("/api/linkedin/callback")
+async def linkedin_callback(code: str, state: Optional[str] = None):
+    """Handle LinkedIn OAuth callback and exchange code for access token"""
+    try:
+        if not LINKEDIN_CLIENT_ID or not LINKEDIN_CLIENT_SECRET:
+            return HTMLResponse("""
+                <html>
+                    <body>
+                        <h2>LinkedIn OAuth Error</h2>
+                        <p>LinkedIn credentials not configured. Please set LINKEDIN_CLIENT_ID and LINKEDIN_CLIENT_SECRET environment variables.</p>
+                        <script>
+                            window.opener.postMessage({error: 'LinkedIn OAuth not configured'}, '*');
+                            window.close();
+                        </script>
+                    </body>
+                </html>
+            """)
+        
+        # Exchange authorization code for access token
+        token_url = "https://www.linkedin.com/oauth/v2/accessToken"
+        token_data = {
+            "grant_type": "authorization_code",
+            "code": code,
+            "redirect_uri": LINKEDIN_REDIRECT_URI,
+            "client_id": LINKEDIN_CLIENT_ID,
+            "client_secret": LINKEDIN_CLIENT_SECRET,
+        }
+        
+        token_response = requests.post(token_url, data=token_data, headers={"Content-Type": "application/x-www-form-urlencoded"})
+        
+        if token_response.status_code != 200:
+            error_msg = token_response.text
+            return HTMLResponse(f"""
+                <html>
+                    <body>
+                        <h2>LinkedIn OAuth Error</h2>
+                        <p>Failed to exchange code for token: {error_msg}</p>
+                        <script>
+                            window.opener.postMessage({{error: 'Failed to get access token'}}, '*');
+                            window.close();
+                        </script>
+                    </body>
+                </html>
+            """)
+        
+        token_json = token_response.json()
+        access_token = token_json.get("access_token")
+        
+        if not access_token:
+            return HTMLResponse("""
+                <html>
+                    <body>
+                        <h2>LinkedIn OAuth Error</h2>
+                        <p>No access token received from LinkedIn.</p>
+                        <script>
+                            window.opener.postMessage({error: 'No access token received'}, '*');
+                            window.close();
+                        </script>
+                    </body>
+                </html>
+            """)
+        
+        # Get user profile from LinkedIn
+        profile_url = "https://api.linkedin.com/v2/me"
+        profile_headers = {"Authorization": f"Bearer {access_token}"}
+        profile_response = requests.get(profile_url, headers=profile_headers)
+        
+        if profile_response.status_code != 200:
+            return HTMLResponse("""
+                <html>
+                    <body>
+                        <h2>LinkedIn OAuth Error</h2>
+                        <p>Failed to fetch profile from LinkedIn.</p>
+                        <script>
+                            window.opener.postMessage({error: 'Failed to fetch profile'}, '*');
+                            window.close();
+                        </script>
+                    </body>
+                </html>
+            """)
+        
+        profile_data = profile_response.json()
+        
+        # Get email address (requires separate API call)
+        email_url = "https://api.linkedin.com/v2/emailAddress?q=members&projection=(elements*(handle~))"
+        email_response = requests.get(email_url, headers=profile_headers)
+        email_address = ""
+        if email_response.status_code == 200:
+            email_data = email_response.json()
+            if "elements" in email_data and len(email_data["elements"]) > 0:
+                email_address = email_data["elements"][0].get("handle~", {}).get("emailAddress", "")
+        
+        # Get profile picture (requires separate API call)
+        picture_url = "https://api.linkedin.com/v2/me?projection=(id,firstName,lastName,profilePicture(displayImage~:playableStreams))"
+        picture_response = requests.get(picture_url, headers=profile_headers)
+        profile_picture = ""
+        if picture_response.status_code == 200:
+            picture_data = picture_response.json()
+            if "profilePicture" in picture_data:
+                display_image = picture_data["profilePicture"].get("displayImage~", {})
+                elements = display_image.get("elements", [])
+                if elements:
+                    # Get the largest image
+                    largest_image = max(elements, key=lambda x: x.get("data", {}).get("com.linkedin.digitalmedia.mediaartifact.StillImage", {}).get("storageSize", {}).get("width", 0))
+                    profile_picture = largest_image.get("identifiers", [{}])[0].get("identifier", "")
+        
+        # Extract name
+        first_name = profile_data.get("firstName", {}).get("localized", {}).get("en_US", "")
+        last_name = profile_data.get("lastName", {}).get("localized", {}).get("en_US", "")
+        full_name = f"{first_name} {last_name}".strip()
+        
+        # Prepare response data
+        linkedin_data = {
+            "access_token": access_token,
+            "linkedin_id": profile_data.get("id", ""),
+            "name": full_name,
+            "first_name": first_name,
+            "last_name": last_name,
+            "email": email_address,
+            "profile_picture": profile_picture,
+            "connected_at": datetime.now().isoformat(),
+        }
+        
+        # Return HTML page that posts message to parent window and closes
+        return HTMLResponse(f"""
+            <html>
+                <head>
+                    <title>LinkedIn Connected</title>
+                </head>
+                <body>
+                    <div style="text-align: center; padding: 50px; font-family: Arial, sans-serif;">
+                        <h2 style="color: #0077b5;">✓ LinkedIn Connected Successfully!</h2>
+                        <p>You can close this window.</p>
+                    </div>
+                    <script>
+                        window.opener.postMessage({{
+                            success: true,
+                            data: {json.dumps(linkedin_data)}
+                        }}, '*');
+                        setTimeout(() => window.close(), 1000);
+                    </script>
+                </body>
+            </html>
+        """)
+        
+    except Exception as e:
+        error_message = str(e)
+        return HTMLResponse(f"""
+            <html>
+                <body>
+                    <h2>LinkedIn OAuth Error</h2>
+                    <p>{error_message}</p>
+                    <script>
+                        window.opener.postMessage({{error: '{error_message}'}}, '*');
+                        window.close();
+                    </script>
+                </body>
+            </html>
+        """)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
