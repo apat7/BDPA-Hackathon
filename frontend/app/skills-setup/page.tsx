@@ -461,12 +461,6 @@ export default function SkillsSetupPage() {
               >
                 Skills Setup
               </Link>
-              <Link 
-                href="/seed-positions"
-                className="text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all duration-300 hover:scale-105"
-              >
-                Seed Positions
-              </Link>
             </div>
           </div>
         </nav>

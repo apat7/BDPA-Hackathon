@@ -17,8 +17,9 @@ export default function LoginPage() {
   const { signInWithGoogle, signInWithEmail, signUpWithEmail } = useAuth();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950 flex items-center justify-center px-6 py-12">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950 flex flex-col">
+      <div className="flex-1 flex items-center justify-center px-6 py-12">
+        <div className="w-full max-w-md">
         {/* Logo */}
         <div className="mb-8 animate-fade-in-down">
           <div className="text-center">
@@ -283,10 +284,11 @@ export default function LoginPage() {
             )}
           </p>
         </div>
+        </div>
       </div>
 
       {/* Footer */}
-      <footer className="container mx-auto px-6 py-12 border-t border-slate-200 dark:border-slate-800 mt-12">
+      <footer className="container mx-auto px-6 py-12 border-t border-slate-200 dark:border-slate-800">
         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
             SkillBridge
