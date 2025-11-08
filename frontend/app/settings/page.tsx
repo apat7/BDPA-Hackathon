@@ -138,10 +138,15 @@ export default function UserSettingsPage() {
       // Get authorization URL from backend
       const response = await fetch("http://localhost:8000/api/linkedin/authorize");
       if (!response.ok) {
-        throw new Error("Failed to get LinkedIn authorization URL");
+        const errorData = await response.json().catch(() => ({ detail: response.statusText }));
+        throw new Error(errorData.detail || `Failed to get LinkedIn authorization URL (${response.status})`);
       }
 
       const { auth_url } = await response.json();
+      
+      if (!auth_url) {
+        throw new Error("No authorization URL received from backend");
+      }
 
       // Open popup window for OAuth
       const width = 600;

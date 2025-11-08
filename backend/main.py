@@ -6,6 +6,14 @@ from typing import List, Optional, Dict
 import uvicorn
 import os
 from datetime import datetime
+
+# Load environment variables from .env file if it exists
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    # python-dotenv not installed, skip loading .env file
+    pass
 from vosk import Model, KaldiRecognizer
 import json
 import subprocess
