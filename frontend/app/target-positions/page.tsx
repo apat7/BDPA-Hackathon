@@ -45,7 +45,7 @@ export default function TargetPositionsPage() {
   const [focusedPositionIds, setFocusedPositionIds] = useState<Set<string>>(new Set());
   const [selectedPosition, setSelectedPosition] = useState<PositionWithProgress | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
-  const [courseraRecommendations, setCourseraRecommendations] = useState<any[]>([]);
+  const [edxRecommendations, setEdxRecommendations] = useState<any[]>([]);
   const [loadingRecommendations, setLoadingRecommendations] = useState(false);
   const [isSkillsDropdownOpen, setIsSkillsDropdownOpen] = useState(false);
   const [skillsSearchQuery, setSkillsSearchQuery] = useState("");
@@ -93,10 +93,10 @@ export default function TargetPositionsPage() {
     };
   }, [isSkillsDropdownOpen, isIndustryDropdownOpen, isSortDropdownOpen]);
 
-  const fetchCourseraRecommendations = async (skills: string[]) => {
+  const fetchEdxRecommendations = async (skills: string[]) => {
     setLoadingRecommendations(true);
     try {
-      const response = await fetch("/api/coursera-recommendations", {
+      const response = await fetch("/api/edx-recommendations", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -105,14 +105,14 @@ export default function TargetPositionsPage() {
       });
       const data = await response.json();
       if (response.ok) {
-        setCourseraRecommendations(data.recommendations);
+        setEdxRecommendations(data.recommendations);
       } else {
-        console.error("Failed to fetch Coursera recommendations:", data.error);
-        setCourseraRecommendations([]);
+        console.error("Failed to fetch EdX recommendations:", data.error);
+        setEdxRecommendations([]);
       }
     } catch (error) {
-      console.error("Error fetching Coursera recommendations:", error);
-      setCourseraRecommendations([]);
+      console.error("Error fetching EdX recommendations:", error);
+      setEdxRecommendations([]);
     } finally {
       setLoadingRecommendations(false);
     }
@@ -358,16 +358,16 @@ export default function TargetPositionsPage() {
     setSelectedPosition(position);
     setIsDetailModalOpen(true);
     if (position.missingSkills.length > 0) {
-      fetchCourseraRecommendations(position.missingSkills);
+      fetchEdxRecommendations(position.missingSkills);
     } else {
-      setCourseraRecommendations([]);
+      setEdxRecommendations([]);
     }
   };
 
   const handleCloseModal = () => {
     setIsDetailModalOpen(false);
     setSelectedPosition(null);
-    setCourseraRecommendations([]); // Clear recommendations when modal closes
+    setEdxRecommendations([]); // Clear recommendations when modal closes
   };
 
   const handleToggleFocus = async (positionId: string) => {
@@ -937,7 +937,7 @@ export default function TargetPositionsPage() {
         onClose={handleCloseModal}
         position={selectedPosition}
         onToggleFocus={() => selectedPosition && handleToggleFocus(selectedPosition.id)}
-        courseraRecommendations={courseraRecommendations}
+        edxRecommendations={edxRecommendations}
         loadingRecommendations={loadingRecommendations}
       />
     </div>

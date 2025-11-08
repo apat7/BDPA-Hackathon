@@ -35,7 +35,7 @@ interface PositionWithProgress extends Position {
   isFocused?: boolean;
 }
 
-interface CourseraRecommendation {
+interface EdxRecommendation {
   id: string;
   title: string;
   platform: string;
@@ -50,7 +50,7 @@ export default function Dashboard() {
   const [positions, setPositions] = useState<Position[]>([]);
   const [customJobs, setCustomJobs] = useState<Position[]>([]);
   const [focusedPositionIds, setFocusedPositionIds] = useState<Set<string>>(new Set());
-  const [courseraRecommendations, setCourseraRecommendations] = useState<CourseraRecommendation[]>([]);
+  const [edxRecommendations, setEdxRecommendations] = useState<EdxRecommendation[]>([]);
   const [loadingRecommendations, setLoadingRecommendations] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
 
@@ -282,16 +282,16 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (aggregatedMissingSkills.length > 0) {
-      fetchCourseraRecommendations(aggregatedMissingSkills);
+      fetchEdxRecommendations(aggregatedMissingSkills);
     } else {
-      setCourseraRecommendations([]);
+      setEdxRecommendations([]);
     }
   }, [aggregatedMissingSkills]);
 
-  const fetchCourseraRecommendations = async (skills: string[]) => {
+  const fetchEdxRecommendations = async (skills: string[]) => {
     setLoadingRecommendations(true);
     try {
-      const response = await fetch("/api/coursera-recommendations", {
+      const response = await fetch("/api/edx-recommendations", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -300,14 +300,14 @@ export default function Dashboard() {
       });
       const data = await response.json();
       if (response.ok) {
-        setCourseraRecommendations(data.recommendations);
+        setEdxRecommendations(data.recommendations);
       } else {
-        console.error("Failed to fetch Coursera recommendations:", data.error);
-        setCourseraRecommendations([]);
+        console.error("Failed to fetch EdX recommendations:", data.error);
+        setEdxRecommendations([]);
       }
     } catch (error) {
-      console.error("Error fetching Coursera recommendations:", error);
-      setCourseraRecommendations([]);
+      console.error("Error fetching EdX recommendations:", error);
+      setEdxRecommendations([]);
     } finally {
       setLoadingRecommendations(false);
     }
@@ -496,9 +496,9 @@ export default function Dashboard() {
           </div>
           {loadingRecommendations ? (
             <p className="text-slate-600 dark:text-slate-400">Loading recommendations...</p>
-          ) : courseraRecommendations.length > 0 ? (
+          ) : edxRecommendations.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {courseraRecommendations.slice(0, 3).map((course, index) => {
+              {edxRecommendations.slice(0, 3).map((course, index) => {
                 const colors = [
                   "from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border-blue-200 dark:border-blue-800",
                   "from-indigo-50 to-indigo-100 dark:from-indigo-900/20 dark:to-indigo-800/20 border-indigo-200 dark:border-indigo-800",
@@ -546,7 +546,7 @@ export default function Dashboard() {
               })}
             </div>
           ) : (
-            <p className="text-slate-600 dark:text-slate-400">No Coursera recommendations found for your missing skills from focused positions.</p>
+            <p className="text-slate-600 dark:text-slate-400">No learning resources found for your missing skills from focused positions.</p>
           )}
         </div>
       </div>

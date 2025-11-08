@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getResourcesForSkills } from "@/lib/learningResources";
 
 export async function POST(request: Request) {
   try {
@@ -11,37 +12,25 @@ export async function POST(request: Request) {
       );
     }
 
-    const COURSERA_API_KEY = process.env.COURSERA_API;
+    // Get matching resources from hardcoded data
+    const resources = getResourcesForSkills(skills);
 
-    if (!COURSERA_API_KEY) {
-      return NextResponse.json(
-        { error: "Coursera API key not configured" },
-        { status: 500 }
-      );
-    }
-
-    // Placeholder for actual Coursera API call
-    // The provided API endpoint GET /api/rest/v1/enterprise/programs/{programId}/skillsets/{skillsetId}/skills/{skillId}/content-recommendations
-    // requires specific IDs (programId, skillsetId, skillId) which are not directly available from skill names.
-    // A more general search endpoint would be needed, or a way to map skill names to these IDs.
-    // For now, we'll return mock data with more specific URLs.
-    // In a real-world scenario, you would integrate with a Coursera API that allows searching by skill name
-    // and provides direct course links.
-
-    const mockRecommendations = skills.map((skill: string, index: number) => ({
-      id: `mock-course-${index}`,
-      title: `Introduction to ${skill} - Course ${index + 1}`,
-      platform: "Coursera",
-      url: `https://www.coursera.org/learn/introduction-to-${skill.toLowerCase().replace(/\s/g, '-')}-${index + 1}`,
-      description: `Learn the fundamentals of ${skill} with this comprehensive course.`,
+    // Convert to the expected response format
+    const recommendations = resources.map(resource => ({
+      id: resource.id,
+      title: resource.title,
+      platform: resource.platform,
+      url: resource.url,
+      description: resource.description,
     }));
 
-    return NextResponse.json({ recommendations: mockRecommendations });
+    return NextResponse.json({ recommendations });
   } catch (error) {
-    console.error("Error fetching Coursera recommendations:", error);
+    console.error("Error processing learning resources request:", error);
     return NextResponse.json(
-      { error: "Failed to fetch Coursera recommendations" },
+      { error: "Failed to fetch learning resources" },
       { status: 500 }
     );
   }
 }
+
