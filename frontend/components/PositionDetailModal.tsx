@@ -20,7 +20,7 @@ interface PositionWithProgress extends Position {
   isFocused?: boolean;
 }
 
-interface CourseraRecommendation {
+interface EdxRecommendation {
   id: string;
   title: string;
   platform: string;
@@ -33,7 +33,7 @@ interface PositionDetailModalProps {
   onClose: () => void;
   position: PositionWithProgress | null;
   onToggleFocus: () => void;
-  courseraRecommendations: CourseraRecommendation[];
+  edxRecommendations: EdxRecommendation[];
   loadingRecommendations: boolean;
 }
 
@@ -42,7 +42,7 @@ export default function PositionDetailModal({
   onClose,
   position,
   onToggleFocus,
-  courseraRecommendations,
+  edxRecommendations,
   loadingRecommendations,
 }: PositionDetailModalProps) {
   if (!isOpen || !position) return null;
@@ -186,20 +186,20 @@ export default function PositionDetailModal({
             </div>
           </div>
 
-          {/* Coursera Recommendations */}
+          {/* Learning Resources */}
           {position.missingSkills.length > 0 && (
             <div className="pt-4 border-t border-slate-200 dark:border-slate-700">
               <div className="flex items-center gap-2 mb-3">
                 <BookOpen className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                 <h3 className="text-lg font-semibold text-blue-700 dark:text-blue-400">
-                  Coursera Recommendations
+                  Learning Resources
                 </h3>
               </div>
               {loadingRecommendations ? (
                 <p className="text-slate-600 dark:text-slate-400">Loading recommendations...</p>
-              ) : courseraRecommendations.length > 0 ? (
+              ) : edxRecommendations.length > 0 ? (
                 <div className="space-y-3">
-                  {courseraRecommendations.map((course) => (
+                  {edxRecommendations.map((course) => (
                     <a
                       key={course.id}
                       href={course.url}
@@ -220,7 +220,7 @@ export default function PositionDetailModal({
                   ))}
                 </div>
               ) : (
-                <p className="text-slate-600 dark:text-slate-400">No Coursera recommendations found for missing skills.</p>
+                <p className="text-slate-600 dark:text-slate-400">No learning resources found for missing skills.</p>
               )}
             </div>
           )}
