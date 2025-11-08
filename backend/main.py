@@ -363,51 +363,36 @@ async def upload_resume(resume: UploadFile = File(...)):
         with open(file_path, "wb") as f:
             f.write(content)
         
-        # Analyze resume and extract skills
+        # Extract text from resume and convert to txt file
         try:
-            from resume_analyzer import analyze_resume, save_skills_to_file
+            from resume_analyzer import extract_text_from_resume
             
-            # Analyze the resume
-            skills_with_experience = analyze_resume(file_path)
+            # Extract text from resume
+            resume_text = extract_text_from_resume(file_path)
             
-            # Generate output filename for skills txt file (save in backend folder)
-            skills_filename = os.path.splitext(filename)[0] + "_skills.txt"
-            # Save in the backend directory (where main.py is located)
-            backend_dir = os.path.dirname(os.path.abspath(__file__))
-            skills_file_path = os.path.join(backend_dir, skills_filename)
+            # Generate txt filename
+            resume_txt_filename = os.path.splitext(filename)[0] + ".txt"
+            resume_txt_path = os.path.join(RESUMES_DIR, resume_txt_filename)
             
-            # Save skills to txt file
-            save_skills_to_file(skills_with_experience, skills_file_path)
-            
-            # Prepare skills list for response
-            skills_list = []
-            for skill, experience in skills_with_experience:
-                if experience:
-                    skills_list.append(f"{skill} - {experience}")
-                else:
-                    skills_list.append(skill)
+            # Save resume text to txt file
+            with open(resume_txt_path, "w", encoding="utf-8") as f:
+                f.write(resume_text)
             
             return {
-                "message": "Resume saved and analyzed successfully",
-                "filename": filename,
-                "file_path": file_path,
+                "message": "Resume converted to text successfully",
+                "original_filename": filename,
+                "original_file_path": file_path,
+                "txt_filename": resume_txt_filename,
+                "txt_file_path": resume_txt_path,
                 "size": len(content),
-                "skills_file": skills_filename,
-                "skills_file_path": skills_file_path,
-                "skills_found": len(skills_with_experience),
-                "skills": skills_list
+                "text_length": len(resume_text)
             }
-        except Exception as analysis_error:
-            # If analysis fails, still return success for file upload
-            # but include error in response
-            return {
-                "message": "Resume saved successfully, but analysis failed",
-                "filename": filename,
-                "file_path": file_path,
-                "size": len(content),
-                "analysis_error": str(analysis_error),
-                "warning": "Skills extraction failed, but resume was saved"
-            }
+        except Exception as conversion_error:
+            # If conversion fails, raise an error
+            raise HTTPException(
+                status_code=500,
+                detail=f"Error converting resume to text: {str(conversion_error)}"
+            )
         
     except HTTPException:
         raise
