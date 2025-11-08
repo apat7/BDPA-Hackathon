@@ -1,20 +1,195 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { BarChart, TrendingUp, Target, BookOpen, User, Settings, LogOut, CheckCircle, AlertCircle, Clock } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { doc, getDoc, collection, getDocs } from "firebase/firestore";
+import { db, fetchUserJobs, fetchFocusedPositions } from "@/lib/firebase";
+
+interface Position {
+  id: string;
+  title: string;
+  industry: string;
+  requiredSkills: string[];
+  description?: string;
+  company?: string;
+  isCustom?: boolean;
+  userId?: string;
+}
+
+interface SkillGap {
+  skill: string;
+  jobCount: number;
+  percentage: number;
+  priority: "High" | "Medium" | "Low";
+}
 
 export default function Dashboard() {
   const { user, loading, signOut } = useAuth();
   const router = useRouter();
+  const [userSkills, setUserSkills] = useState<string[]>([]);
+  const [positions, setPositions] = useState<Position[]>([]);
+  const [customJobs, setCustomJobs] = useState<Position[]>([]);
+  const [focusedPositionIds, setFocusedPositionIds] = useState<Set<string>>(new Set());
+  const [loadingData, setLoadingData] = useState(true);
 
   useEffect(() => {
     if (!loading && !user) {
       router.push("/login");
     }
   }, [user, loading, router]);
+
+  useEffect(() => {
+    if (user) {
+      fetchUserSkills();
+      fetchPositions();
+      fetchAndSetUserJobs();
+      fetchFocusedPositionsIds();
+    }
+  }, [user]);
+
+  const fetchAndSetUserJobs = async () => {
+    if (!user) return;
+    try {
+      const userJobs = await fetchUserJobs(user.uid);
+      setCustomJobs(userJobs);
+    } catch (error) {
+      console.error("Error fetching user's custom jobs:", error);
+    }
+  };
+
+  const fetchFocusedPositionsIds = async () => {
+    if (!user) return;
+    try {
+      const focusedIds = await fetchFocusedPositions(user.uid);
+      setFocusedPositionIds(new Set(focusedIds));
+    } catch (error) {
+      console.error("Error fetching focused positions:", error);
+    }
+  };
+
+  const fetchUserSkills = async () => {
+    if (!user) return;
+    try {
+      const userDocRef = doc(db, "users", user.uid);
+      const userDoc = await getDoc(userDocRef);
+      if (userDoc.exists()) {
+        const data = userDoc.data();
+        if (data.skills) {
+          if (Array.isArray(data.skills)) {
+            if (data.skills.length > 0 && typeof data.skills[0] === 'string') {
+              setUserSkills(data.skills);
+            } else {
+              setUserSkills(data.skills.map((s: any) => s.skill || s));
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching user skills:", error);
+    }
+  };
+
+  const fetchPositions = async () => {
+    try {
+      const positionsCollection = collection(db, "positions");
+      const positionsSnapshot = await getDocs(positionsCollection);
+      const positionsData: Position[] = [];
+      positionsSnapshot.forEach((doc) => {
+        positionsData.push({
+          id: doc.id,
+          ...doc.data(),
+        } as Position);
+      });
+      setPositions(positionsData);
+      setLoadingData(false);
+    } catch (error) {
+      console.error("Error fetching positions:", error);
+      setLoadingData(false);
+    }
+  };
+
+  const skillGaps: SkillGap[] = useMemo(() => {
+    // Get all target jobs
+    const allTargetJobs = [...positions, ...customJobs.filter(job => job.userId === user?.uid)];
+    
+    // Filter to only focused jobs
+    const focusedJobs = allTargetJobs.filter((job) => focusedPositionIds.has(job.id));
+    
+    // If no focused jobs, return empty array
+    if (focusedJobs.length === 0) {
+      return [];
+    }
+
+    // Extract all unique skills from focused jobs
+    const allSkillsSet = new Set<string>();
+    focusedJobs.forEach((job) => {
+      job.requiredSkills?.forEach((skill) => {
+        allSkillsSet.add(skill);
+      });
+    });
+
+    // Filter out skills user already has (case-insensitive)
+    const userSkillsLower = userSkills.map((skill) => skill.toLowerCase().trim());
+    const missingSkills = Array.from(allSkillsSet).filter((skill) => {
+      const skillLower = skill.toLowerCase().trim();
+      return !userSkillsLower.includes(skillLower);
+    });
+
+    // Count occurrences of each missing skill across focused jobs
+    const skillCounts = new Map<string, number>();
+    missingSkills.forEach((skill) => {
+      const skillLower = skill.toLowerCase().trim();
+      let count = 0;
+      focusedJobs.forEach((job) => {
+        const jobSkillsLower = job.requiredSkills?.map((s) => s.toLowerCase().trim()) || [];
+        if (jobSkillsLower.includes(skillLower)) {
+          count++;
+        }
+      });
+      skillCounts.set(skill, count);
+    });
+
+    // Convert to array and sort by count (highest first)
+    const gaps: SkillGap[] = Array.from(skillCounts.entries())
+      .map(([skill, jobCount]) => {
+        const percentage = (jobCount / focusedJobs.length) * 100;
+        let priority: "High" | "Medium" | "Low";
+        if (jobCount >= Math.ceil(focusedJobs.length * 0.5)) {
+          priority = "High";
+        } else if (jobCount >= Math.ceil(focusedJobs.length * 0.25)) {
+          priority = "Medium";
+        } else {
+          priority = "Low";
+        }
+        return {
+          skill,
+          jobCount,
+          percentage,
+          priority,
+        };
+      })
+      .sort((a, b) => b.jobCount - a.jobCount);
+
+    return gaps;
+  }, [positions, customJobs, userSkills, user, focusedPositionIds]);
+
+  const topSkills = useMemo(() => {
+    return skillGaps.slice(0, 4);
+  }, [skillGaps]);
+
+  const getProgressColor = (priority: "High" | "Medium" | "Low") => {
+    switch (priority) {
+      case "High":
+        return "from-orange-500 to-orange-600";
+      case "Medium":
+        return "from-yellow-500 to-yellow-600";
+      case "Low":
+        return "from-blue-500 to-blue-600";
+    }
+  };
 
   const handleSignOut = async () => {
     try {
@@ -24,7 +199,7 @@ export default function Dashboard() {
     }
   };
 
-  if (loading) {
+  if (loading || loadingData) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950 flex items-center justify-center">
         <div className="text-slate-600 dark:text-slate-300">Loading...</div>
@@ -46,6 +221,12 @@ export default function Dashboard() {
               SkillBridge
             </div>
             <div className="flex items-center gap-4">
+              <Link 
+                href="/dashboard"
+                className="text-blue-600 dark:text-blue-400 font-semibold hover:text-blue-700 dark:hover:text-blue-300 transition-all duration-300 hover:scale-105"
+              >
+                Dashboard
+              </Link>
               <Link 
                 href="/target-positions"
                 className="text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all duration-300 hover:scale-105"
@@ -140,48 +321,37 @@ export default function Dashboard() {
           <div className="lg:col-span-2 bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl rounded-2xl p-6 border border-slate-200 dark:border-slate-700 shadow-lg animate-fade-in-up animate-delay-500">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Skill Gap Analysis</h2>
-              <button className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors">
+              <Link 
+                href="/skill-gap-analysis"
+                className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
+              >
                 View Details
-              </button>
+              </Link>
             </div>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-600 dark:text-slate-400">TypeScript</span>
-                  <span className="text-slate-900 dark:text-white font-semibold">High Priority</span>
-                </div>
-                <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-orange-500 to-orange-600 rounded-full" style={{ width: '75%' }}></div>
-                </div>
+            {topSkills.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-slate-600 dark:text-slate-400">
+                  Focus on target jobs to see skill gaps
+                </p>
               </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-600 dark:text-slate-400">AWS Cloud</span>
-                  <span className="text-slate-900 dark:text-white font-semibold">Medium Priority</span>
-                </div>
-                <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-yellow-500 to-yellow-600 rounded-full" style={{ width: '50%' }}></div>
-                </div>
+            ) : (
+              <div className="space-y-4">
+                {topSkills.map((gap, index) => (
+                  <div key={gap.skill} className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-600 dark:text-slate-400">{gap.skill}</span>
+                      <span className="text-slate-900 dark:text-white font-semibold">{gap.priority} Priority</span>
+                    </div>
+                    <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full bg-gradient-to-r ${getProgressColor(gap.priority)} rounded-full transition-all duration-1000 ease-out`}
+                        style={{ width: `${gap.percentage}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-600 dark:text-slate-400">Docker</span>
-                  <span className="text-slate-900 dark:text-white font-semibold">Medium Priority</span>
-                </div>
-                <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-yellow-500 to-yellow-600 rounded-full" style={{ width: '45%' }}></div>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-600 dark:text-slate-400">GraphQL</span>
-                  <span className="text-slate-900 dark:text-white font-semibold">Low Priority</span>
-                </div>
-                <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full" style={{ width: '30%' }}></div>
-                </div>
-              </div>
-            </div>
+            )}
           </div>
 
           {/* Recent Activity */}

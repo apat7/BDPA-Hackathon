@@ -38,10 +38,30 @@ export const saveUserJob = async (userId: string, jobData: any) => {
   const sanitizedId = jobData.id.toString().replace(/[\/]/g, '_');
   
   try {
+    // Ensure user document exists first (required for subcollections)
+    const userDocRef = doc(db, "users", userId);
+    const userDoc = await getDoc(userDocRef);
+    if (!userDoc.exists()) {
+      // Create user document if it doesn't exist
+      await setDoc(userDocRef, {
+        email: null,
+        createdAt: new Date().toISOString(),
+        hasCompletedSkillsSetup: false,
+        skills: [],
+      });
+    }
+    
     const userJobRef = doc(collection(db, "users", userId, "user_jobs"), sanitizedId);
+    console.log("Attempting to save job to:", `users/${userId}/user_jobs/${sanitizedId}`);
     await setDoc(userJobRef, { ...jobData, id: sanitizedId }, { merge: true });
+    console.log("Job saved successfully");
   } catch (error: any) {
-    console.error("Firestore save error:", error);
+    console.error("Firestore save error details:", {
+      code: error.code,
+      message: error.message,
+      userId: userId,
+      jobId: sanitizedId,
+    });
     // Re-throw with more context
     throw new Error(`Failed to save job to Firestore: ${error.message || error.code || 'Unknown error'}`);
   }
