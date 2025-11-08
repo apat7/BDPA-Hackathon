@@ -264,7 +264,7 @@ export default function SkillsSetupPage() {
     setShowProcessedSkills(false);
 
     try {
-      const response = await fetch("http://localhost:8000/api/skills/process-text", {
+      const response = await fetch("http://localhost:8000/api/skills/process", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

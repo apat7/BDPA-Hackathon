@@ -1009,13 +1009,13 @@ def extract_skills_fallback(text: str) -> List[CategorizedSkill]:
     return skills_found
 
 # Test endpoint for process-text route
-@app.get("/api/skills/process-text/test")
+@app.get("/api/skills/process/test")
 async def test_process_text():
     """Test endpoint to verify the route is accessible."""
     return {"message": "Process text endpoint is accessible", "status": "ok"}
 
 # Process text endpoint (must come before /api/skills to avoid route conflicts)
-@app.post("/api/skills/process-text", response_model=ProcessTextResponse)
+@app.post("/api/skills/process", response_model=ProcessTextResponse)
 async def process_text(request: ProcessTextRequest):
     """Process free-form text to extract and categorize skills using Gemini API."""
     try:
@@ -1128,4 +1128,3 @@ async def get_skills(user_id: str):
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
-
