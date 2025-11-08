@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { Upload, Mic, FileText } from "lucide-react";
+import { Upload, Mic, FileText, User } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import TagInput, { SkillWithLevel } from "@/components/TagInput";
 import { SKILLS_LIST } from "@/lib/skills";
@@ -429,43 +429,21 @@ export default function SkillsSetupPage() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950 flex flex-col">
       <div className="flex-1 flex items-center justify-center px-6 py-12">
         <div className="w-full max-w-4xl">
-        {/* Navigation */}
-        <nav className="mb-8 animate-fade-in-down">
-          <div className="flex items-center justify-between mb-4">
-            <Link 
-              href="/"
-              className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent"
-            >
+        {/* Logo and Navigation */}
+        <div className="mb-8 animate-fade-in-down">
+          <div className="flex items-center justify-between">
+            <div className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
               SkillBridge
-            </Link>
-            <div className="flex items-center gap-3 text-sm">
-              <Link 
-                href="/"
-                className="text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all duration-300 hover:scale-105"
-              >
-                Home
-              </Link>
-              <Link 
-                href="/dashboard"
-                className="text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all duration-300 hover:scale-105"
-              >
-                Dashboard
-              </Link>
-              <Link 
-                href="/target-positions"
-                className="text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all duration-300 hover:scale-105"
-              >
-                Target Positions
-              </Link>
-              <Link 
-                href="/skills-setup"
-                className="text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all duration-300 hover:scale-105"
-              >
-                Skills Setup
-              </Link>
             </div>
+            <Link 
+              href="/settings"
+              className="p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all duration-300 hover:scale-105"
+              title="User Settings"
+            >
+              <User className="w-5 h-5" />
+            </Link>
           </div>
-        </nav>
+        </div>
 
         {/* Main Card */}
         <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 p-8 animate-scale-in hover:shadow-3xl transition-all duration-500">
