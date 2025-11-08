@@ -7,6 +7,8 @@ import TagInput, { SkillWithLevel } from "@/components/TagInput";
 import { SKILLS_LIST } from "@/lib/skills";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
+import { doc, updateDoc } from "firebase/firestore";
+import { getFirestoreInstance } from "@/lib/firebase";
 
 type InputMethod = "resume" | "voice";
 
@@ -310,7 +312,7 @@ export default function SkillsSetupPage() {
     }
   };
 
-  // Save skills to backend
+  // Save skills to Firebase and backend
   const handleSaveSkills = async () => {
     if (!user) {
       setSkillsSaveError("You must be logged in to save skills.");
@@ -327,29 +329,44 @@ export default function SkillsSetupPage() {
     setSkillsSaveSuccess(false);
 
     try {
-      const response = await fetch("http://localhost:8000/api/skills", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          user_id: user.uid,
-          skills: selectedSkills,
-        }),
+      // Save skills to Firebase Firestore
+      const db = getFirestoreInstance();
+      const userDocRef = doc(db, "users", user.uid);
+      
+      // Prepare skills data for Firebase
+      const skillsData = selectedSkills.map(skill => ({
+        skill: skill.skill,
+        level: skill.level,
+      }));
+
+      // Update user document with skills and mark setup as complete
+      await updateDoc(userDocRef, {
+        skills: skillsData,
+        hasCompletedSkillsSetup: true,
+        skillsUpdatedAt: new Date().toISOString(),
       });
 
-      if (!response.ok) {
-        let errorMessage = "Failed to save skills";
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.detail || errorData.message || errorMessage;
-        } catch {
-          errorMessage = response.statusText || errorMessage;
+      // Also save to backend API (if needed for other services)
+      try {
+        const response = await fetch("http://localhost:8000/api/skills", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            user_id: user.uid,
+            skills: selectedSkills,
+          }),
+        });
+
+        if (!response.ok) {
+          console.warn("Backend API save failed, but Firebase save succeeded");
         }
-        throw new Error(errorMessage);
+      } catch (backendError) {
+        // Log but don't fail if backend save fails - Firebase save is primary
+        console.warn("Backend API save error:", backendError);
       }
 
-      const result = await response.json();
       setSkillsSaveSuccess(true);
       
       // Redirect to target-positions after successful save
