@@ -131,10 +131,10 @@ export default function SkillsSetupPage() {
       setUploadSuccess(true);
       setRecordingDuration(0);
       
-      // Reset success message after 3 seconds
+      // Redirect to target-positions after successful upload
       setTimeout(() => {
-        setUploadSuccess(false);
-      }, 3000);
+        router.push("/target-positions");
+      }, 1500);
     } catch (err) {
       console.error("Error uploading recording:", err);
       setError("Failed to upload recording. Please try again.");
@@ -227,10 +227,10 @@ export default function SkillsSetupPage() {
       setResumeUploadSuccess(true);
       setSelectedFile(null);
       
-      // Reset success message after 3 seconds
+      // Redirect to target-positions after successful upload
       setTimeout(() => {
-        setResumeUploadSuccess(false);
-      }, 3000);
+        router.push("/target-positions");
+      }, 1500);
     } catch (err) {
       console.error("Error uploading resume:", err);
       const errorMessage = err instanceof Error ? err.message : "Failed to upload resume. Please try again.";
@@ -282,9 +282,9 @@ export default function SkillsSetupPage() {
       const result = await response.json();
       setSkillsSaveSuccess(true);
       
-      // Redirect to dashboard after successful save
+      // Redirect to target-positions after successful save
       setTimeout(() => {
-        router.push("/dashboard");
+        router.push("/target-positions");
       }, 1500);
     } catch (err) {
       console.error("Error saving skills:", err);
@@ -642,4 +642,3 @@ export default function SkillsSetupPage() {
     </div>
   );
 }
-
