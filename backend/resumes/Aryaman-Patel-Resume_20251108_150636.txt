@@ -1,0 +1,50 @@
+Aryaman Patel
+Indianapolis, IN | 732-209-1513 | pate2794@purdue.edu | https://www.linkedin.com/in/aryamanp7
+EDUCATION
+Purdue University West Lafayette, IN
+Bachelor of Science in Computer Science with a Minor in Nuclear Engineering August 2025 - May 2029
+SKILLS
+Computer Languages: Python, Java, JavaScript, R, SQL
+Frameworks/Technologies: NodeJS, Matplotlib, Pandas, React, Firebase, FastAPI, NetworkX
+Software: Adobe Photoshop, Adobe After Effects, Adobe Premiere Pro, IntelliJ, Visual Studio Code
+PROFESSIONAL EXPERIENCE
+SPARK Labs, Purdue University West Lafayette, IN
+Artificial Intelligence Researcher October 2025 – Present
+• Fine-tuned an LLM using thousands of syllabi from various higher-ed institutions to analyze the usage of AI within the
+learning environment
+• Web scrapped thousands of publicly available syllabi using Python libraries such as selenium and be4utifulsoup
+The Data Mine, Purdue University Indianapolis, IN
+Undergraduate Data Science Researcher August 2025 – Present
+• Collaborated with defense contractor V2X to design and prototype vision software for nationwide tolling booths
+• Developed a Python-based ML solution capable of recognizing up to 3,000 license plates per hour, per lane
+BAPS, Local Hindu Temple Edison, NJ
+Volunteer Tech Admin March 2021 – August 2025
+• Managed databases for events and attendance at the temple
+• Created forms, graphics, and management solutions for various events
+• Organized signups and front desk questions for events with over 2,000 attendees
+Glowstik, YouTube Edison, NJ
+Coding Content Creator January 2021 – October 2024
+• Built a social media following of over four thousand on YouTube
+• Amassed over 1 million views across 140+ YouTube videos and taught thousands python programming
+Oza Intel, Salesforce Consultant Edison, NJ
+Software Engineering Intern July 2023 – September 2023
+• Integrated Salesforce into companies and aided clients analyze data to maximize productivity
+• Worked on a data visualizer allowing clients to filter sales data by zip code
+• Conceptualized the framework for allowing multiple languages within the dashboard, increasing productivity for
+thousands of employees working internationally
+ACTIVITIES
+• Purdue Computer Science Club Executive Board Member Present
+• Purdue Climbing Club Present
+• Hackathon Winner (NHacks 6, GooseHacks 2023, Purdue Hello World) July 2022 – September 2025
+PROJECT WORK
+Pedal September 2025
+• Developed a full-stack web application using Python, FastAPI, NetworkX, OSMnx, React, and Firebase to generate
+safe, eco-friendly travel routes by integrating crime, bike lane, and geospatial data
+• Implemented a custom graph-based routing algorithm (Dijkstra with weighted safety penalties) and processed
+40,000+ crime reports and OpenStreetMap data
+• Won 2nd Place Overall at Purdue’s largest hackathon ever
+Vroom Summer 2025
+• Prototyped an app to find the best roads to drive on using a self-developed algorithm factoring in curviness, speed
+limit, elevation, and tarmac quality
+• Currently creating a frontend using React and Firebase to visualize roads and integrate them into existing trips
+• Used NextJS, TailwindCSS, and Maptiler to achieve the frontend with Firebase, FastAPI, and OSMnx for backend

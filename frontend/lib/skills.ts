@@ -5,7 +5,7 @@ export const SKILLS_LIST = [
 
   // Web Frameworks & Libraries
   "React", "Next.js", "Vue.js", "Nuxt.js", "Angular", "Svelte", "Ember.js", "jQuery", "Backbone.js", "Alpine.js",
-  "Node.js", "Express", "NestJS", "Fastify", "Django", "Flask", "FastAPI", "Spring Boot", "ASP.NET Core", "Laravel", "Ruby on Rails", "Phoenix", "Meteor", "Gatsby", "Remix",
+  "Node.js", "Express", "NestJS", "Fastify", "Django", "Flask", "FastAPI", "Spring Boot", "ASP.NET Core", "Laravel", "Ruby on Rails", "Phoenix", "Meteor", "Gatsby", "Remix","HTML", "CSS",
 
   // Mobile Development
   "React Native", "Flutter", "Ionic", "SwiftUI", "Kotlin Multiplatform", "Xamarin", "Android SDK", "iOS SDK",
