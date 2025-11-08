@@ -47,6 +47,12 @@ export default function Dashboard() {
             </div>
             <div className="flex items-center gap-4">
               <Link 
+                href="/target-positions"
+                className="text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all duration-300 hover:scale-105"
+              >
+                Target Positions
+              </Link>
+              <Link 
                 href="/skills-setup"
                 className="text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all duration-300 hover:scale-105"
               >
