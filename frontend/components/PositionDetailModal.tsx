@@ -1,5 +1,7 @@
-import React from "react";
-import { X, Star, Building2, Target, CheckCircle, AlertCircle, BookOpen, ExternalLink } from "lucide-react";
+import React, { useState } from "react";
+import { X, Star, Building2, Target, CheckCircle, AlertCircle, BookOpen, ExternalLink, GitBranch } from "lucide-react";
+import SkillTreeModal from "./SkillTreeModal";
+import { hasSkillTree } from "@/lib/skillTrees";
 
 interface Position {
   id: string;
@@ -35,6 +37,7 @@ interface PositionDetailModalProps {
   onToggleFocus: () => void;
   edxRecommendations: EdxRecommendation[];
   loadingRecommendations: boolean;
+  userSkills: string[];
 }
 
 export default function PositionDetailModal({
@@ -44,8 +47,13 @@ export default function PositionDetailModal({
   onToggleFocus,
   edxRecommendations,
   loadingRecommendations,
+  userSkills,
 }: PositionDetailModalProps) {
+  const [isSkillTreeOpen, setIsSkillTreeOpen] = useState(false);
+  
   if (!isOpen || !position) return null;
+  
+  const showSkillTree = hasSkillTree(position.title);
 
   const getProgressColor = (percentage: number) => {
     if (percentage >= 75) return "from-green-500 to-green-600";
@@ -225,6 +233,19 @@ export default function PositionDetailModal({
             </div>
           )}
 
+          {/* Skill Tree Button */}
+          {showSkillTree && (
+            <div className="pt-4 border-t border-slate-200 dark:border-slate-700">
+              <button
+                onClick={() => setIsSkillTreeOpen(true)}
+                className="w-full px-6 py-3 rounded-lg font-semibold transition-all duration-300 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                <GitBranch className="w-5 h-5" />
+                View Skill Tree
+              </button>
+            </div>
+          )}
+
           {/* Focus Button */}
           <div className="pt-4 border-t border-slate-200 dark:border-slate-700">
             <button
@@ -247,6 +268,16 @@ export default function PositionDetailModal({
           </div>
         </div>
       </div>
+      
+      {/* Skill Tree Modal */}
+      {showSkillTree && (
+        <SkillTreeModal
+          isOpen={isSkillTreeOpen}
+          onClose={() => setIsSkillTreeOpen(false)}
+          position={position}
+          userSkills={userSkills}
+        />
+      )}
     </div>
   );
 }

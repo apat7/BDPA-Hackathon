@@ -65,6 +65,60 @@ export const LEARNING_RESOURCES: LearningResource[] = [
     tags: ["React", "JavaScript", "Frontend", "Web Development"]
   },
 
+  // React Ecosystem - Redux
+  {
+    id: "redux-coursera",
+    title: "Redux for React Applications",
+    platform: "Coursera",
+    url: "https://www.coursera.org/learn/redux",
+    description: "Master Redux state management for React applications. Learn actions, reducers, and middleware.",
+    tags: ["Redux", "React", "State Management", "JavaScript", "Frontend"]
+  },
+  {
+    id: "redux-edx",
+    title: "State Management with Redux",
+    platform: "EdX",
+    url: "https://www.edx.org/learn/redux",
+    description: "Learn Redux for managing complex application state in React applications.",
+    tags: ["Redux", "React", "State Management", "JavaScript"]
+  },
+
+  // Build Tools - Webpack
+  {
+    id: "webpack-coursera",
+    title: "Webpack and Modern JavaScript Build Tools",
+    platform: "Coursera",
+    url: "https://www.coursera.org/learn/webpack",
+    description: "Master Webpack for bundling JavaScript applications. Learn code splitting, optimization, and plugins.",
+    tags: ["Webpack", "Build Tools", "JavaScript", "React", "Frontend"]
+  },
+  {
+    id: "webpack-edx",
+    title: "Introduction to Webpack",
+    platform: "EdX",
+    url: "https://www.edx.org/learn/webpack",
+    description: "Learn Webpack module bundler for modern JavaScript applications.",
+    tags: ["Webpack", "Build Tools", "JavaScript", "React"]
+  },
+
+  // HTML & CSS
+  {
+    id: "html-css-coursera",
+    title: "HTML, CSS, and Javascript for Web Developers",
+    platform: "Coursera",
+    url: "https://www.coursera.org/learn/html-css-javascript-for-web-developers",
+    description: "Learn HTML and CSS fundamentals for building responsive web pages.",
+    tags: ["HTML", "CSS", "Web Development", "Frontend"]
+  },
+  {
+    id: "html-css-edx",
+    title: "Introduction to HTML and CSS",
+    platform: "EdX",
+    url: "https://www.edx.org/learn/html-css",
+    description: "Master HTML and CSS for creating beautiful and responsive web pages.",
+    tags: ["HTML", "CSS", "Web Development", "Frontend"]
+  },
+
   // Web Frameworks - Node.js
   {
     id: "nodejs-coursera",
@@ -167,30 +221,166 @@ export const LEARNING_RESOURCES: LearningResource[] = [
     tags: ["Kubernetes", "DevOps", "Containers", "Docker", "Cloud", "Deployment"]
   },
 
-  // Data Science & Machine Learning
+  // QA & Testing - Testing Fundamentals
   {
-    id: "ml-coursera",
-    title: "Machine Learning Specialization",
+    id: "testing-coursera",
+    title: "Software Testing and Automation Specialization",
     platform: "Coursera",
-    url: "https://www.coursera.org/specializations/machine-learning",
-    description: "Master machine learning algorithms, neural networks, and deep learning. Build ML models with Python.",
-    tags: ["Machine Learning", "Python", "Data Science", "Deep Learning", "TensorFlow", "PyTorch", "Scikit-learn"]
+    url: "https://www.coursera.org/specializations/software-testing-automation",
+    description: "Learn software testing fundamentals, test planning, and test case design.",
+    tags: ["Testing", "Test Planning", "Automation", "Software Testing"]
   },
   {
-    id: "ml-edx",
-    title: "Introduction to Machine Learning",
+    id: "testing-edx",
+    title: "Introduction to Software Testing",
     platform: "EdX",
-    url: "https://www.edx.org/learn/machine-learning",
-    description: "Learn machine learning fundamentals, including supervised and unsupervised learning algorithms.",
-    tags: ["Machine Learning", "Python", "Data Science", "Scikit-learn"]
+    url: "https://www.edx.org/learn/software-testing",
+    description: "Master the fundamentals of software testing and quality assurance.",
+    tags: ["Testing", "Test Planning", "Software Testing", "Quality Assurance"]
+  },
+
+  // QA & Testing - Automation
+  {
+    id: "automation-coursera",
+    title: "Test Automation with Selenium",
+    platform: "Coursera",
+    url: "https://www.coursera.org/learn/test-automation",
+    description: "Learn test automation frameworks and tools for automated testing.",
+    tags: ["Automation", "Selenium", "Testing", "Test Automation"]
   },
   {
-    id: "data-science-coursera",
-    title: "Data Science Specialization",
+    id: "automation-edx",
+    title: "Test Automation Fundamentals",
+    platform: "EdX",
+    url: "https://www.edx.org/learn/test-automation",
+    description: "Master test automation principles and practices.",
+    tags: ["Automation", "Testing", "Test Automation"]
+  },
+
+  // QA & Testing - Selenium
+  {
+    id: "selenium-coursera",
+    title: "Selenium WebDriver with Python",
     platform: "Coursera",
-    url: "https://www.coursera.org/specializations/jhu-data-science",
-    description: "Complete data science course covering R programming, statistical analysis, and data visualization.",
-    tags: ["Data Science", "R", "Statistics", "Data Analysis", "Data Visualization", "Pandas", "NumPy"]
+    url: "https://www.coursera.org/learn/selenium",
+    description: "Master Selenium WebDriver for automated web testing with Python.",
+    tags: ["Selenium", "Python", "Automation", "Testing", "Web Testing"]
+  },
+  {
+    id: "selenium-edx",
+    title: "Introduction to Selenium",
+    platform: "EdX",
+    url: "https://www.edx.org/learn/selenium",
+    description: "Learn Selenium for automated browser testing and web application testing.",
+    tags: ["Selenium", "Automation", "Testing", "Web Testing"]
+  },
+
+  // QA & Testing - Bug Tracking
+  {
+    id: "bug-tracking-coursera",
+    title: "Bug Tracking and Defect Management",
+    platform: "Coursera",
+    url: "https://www.coursera.org/learn/bug-tracking",
+    description: "Learn bug tracking systems, defect lifecycle, and issue management.",
+    tags: ["Bug Tracking", "Test Planning", "Testing", "Quality Assurance"]
+  },
+  {
+    id: "bug-tracking-edx",
+    title: "Defect Management and Bug Tracking",
+    platform: "EdX",
+    url: "https://www.edx.org/learn/bug-tracking",
+    description: "Master bug tracking tools and defect management processes.",
+    tags: ["Bug Tracking", "Testing", "Quality Assurance"]
+  },
+
+  // QA & Testing - Test Planning
+  {
+    id: "test-planning-coursera",
+    title: "Test Planning and Strategy",
+    platform: "Coursera",
+    url: "https://www.coursera.org/learn/test-planning",
+    description: "Learn comprehensive test planning, test strategy, and test case design.",
+    tags: ["Test Planning", "Testing", "Test Strategy", "Quality Assurance"]
+  },
+  {
+    id: "test-planning-edx",
+    title: "Test Planning and Design",
+    platform: "EdX",
+    url: "https://www.edx.org/learn/test-planning",
+    description: "Master test planning methodologies and test design techniques.",
+    tags: ["Test Planning", "Testing", "Test Design"]
+  },
+
+  // Data Science - Statistics
+  {
+    id: "statistics-coursera",
+    title: "Statistics with Python Specialization",
+    platform: "Coursera",
+    url: "https://www.coursera.org/specializations/statistics-with-python",
+    description: "Learn statistical analysis with Python. Master hypothesis testing, regression, and data analysis.",
+    tags: ["Statistics", "Python", "Data Analysis", "Data Science"]
+  },
+  {
+    id: "statistics-edx",
+    title: "Introduction to Statistics",
+    platform: "EdX",
+    url: "https://www.edx.org/learn/statistics",
+    description: "Master statistical concepts and methods for data analysis.",
+    tags: ["Statistics", "Data Analysis", "Data Science"]
+  },
+
+  // Data Science - Pandas
+  {
+    id: "pandas-coursera",
+    title: "Data Manipulation with Pandas",
+    platform: "Coursera",
+    url: "https://www.coursera.org/learn/pandas",
+    description: "Master Pandas for data manipulation, cleaning, and analysis in Python.",
+    tags: ["Pandas", "Python", "Data Analysis", "Data Science", "NumPy"]
+  },
+  {
+    id: "pandas-edx",
+    title: "Data Analysis with Pandas",
+    platform: "EdX",
+    url: "https://www.edx.org/learn/pandas",
+    description: "Learn Pandas library for efficient data manipulation and analysis.",
+    tags: ["Pandas", "Python", "Data Analysis", "NumPy"]
+  },
+
+  // Data Science - NumPy
+  {
+    id: "numpy-coursera",
+    title: "NumPy for Data Science",
+    platform: "Coursera",
+    url: "https://www.coursera.org/learn/numpy",
+    description: "Master NumPy for numerical computing and array operations in Python.",
+    tags: ["NumPy", "Python", "Data Science", "Data Analysis"]
+  },
+  {
+    id: "numpy-edx",
+    title: "Introduction to NumPy",
+    platform: "EdX",
+    url: "https://www.edx.org/learn/numpy",
+    description: "Learn NumPy fundamentals for scientific computing and data analysis.",
+    tags: ["NumPy", "Python", "Data Science"]
+  },
+
+  // Data Science - Data Visualization
+  {
+    id: "data-visualization-coursera",
+    title: "Data Visualization Specialization",
+    platform: "Coursera",
+    url: "https://www.coursera.org/specializations/data-visualization",
+    description: "Master data visualization techniques using Python, Matplotlib, and Seaborn.",
+    tags: ["Data Visualization", "Python", "Pandas", "Matplotlib", "Data Science"]
+  },
+  {
+    id: "data-visualization-edx",
+    title: "Data Visualization with Python",
+    platform: "EdX",
+    url: "https://www.edx.org/learn/data-visualization",
+    description: "Learn to create compelling data visualizations using Python libraries.",
+    tags: ["Data Visualization", "Python", "Pandas", "Data Science"]
   },
 
   // TypeScript

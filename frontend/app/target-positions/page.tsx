@@ -939,6 +939,7 @@ export default function TargetPositionsPage() {
         onToggleFocus={() => selectedPosition && handleToggleFocus(selectedPosition.id)}
         edxRecommendations={edxRecommendations}
         loadingRecommendations={loadingRecommendations}
+        userSkills={userSkills}
       />
     </div>
   );
