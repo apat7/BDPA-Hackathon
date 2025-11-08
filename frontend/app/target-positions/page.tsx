@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Target, Filter, X, Building2, Briefcase, LogOut, Settings, User, PlusCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { doc, getDoc, collection, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db, saveUserJob, fetchUserJobs, deleteUserJob } from "@/lib/firebase";
 import AddJobModal from "@/components/AddJobModal";
 
 interface Position {
@@ -49,8 +49,19 @@ export default function TargetPositionsPage() {
     if (user) {
       fetchUserSkills();
       fetchPositions();
+      fetchAndSetUserJobs(); // Fetch custom jobs for the user
     }
   }, [user]);
+
+  const fetchAndSetUserJobs = async () => {
+    if (!user) return;
+    try {
+      const userJobs = await fetchUserJobs(user.uid);
+      setCustomJobs(userJobs);
+    } catch (error) {
+      console.error("Error fetching user's custom jobs:", error);
+    }
+  };
 
   const fetchUserSkills = async () => {
     if (!user) return;
@@ -183,7 +194,7 @@ export default function TargetPositionsPage() {
     return filtered;
   }, [positionsWithProgress, selectedIndustry, selectedSkills, filterByMySkills]);
 
-  const handleAddCustomJob = (jobDetails: { title: string; company: string; industry: string; description: string; requiredSkills: string }) => {
+  const handleAddCustomJob = async (jobDetails: { title: string; company: string; industry: string; description: string; requiredSkills: string }) => {
     if (!user) return;
     const newCustomJob: Position = {
       id: `custom-${Date.now()}`, // Unique ID for custom job
@@ -195,12 +206,25 @@ export default function TargetPositionsPage() {
       isCustom: true,
       userId: user.uid, // Link to the current user
     };
-    setCustomJobs((prev) => [...prev, newCustomJob]);
-    setIsAddJobModalOpen(false); // Close modal after submission
+    try {
+      await saveUserJob(user.uid, newCustomJob); // Save to Firebase
+      setCustomJobs((prev) => [...prev, newCustomJob]);
+      setIsAddJobModalOpen(false); // Close modal after submission
+    } catch (error) {
+      console.error("Error saving custom job to Firebase:", error);
+      // Optionally, show an error message to the user
+    }
   };
 
-  const handleDeleteCustomJob = (id: string) => {
-    setCustomJobs((prev) => prev.filter((job) => job.id !== id));
+  const handleDeleteCustomJob = async (id: string) => {
+    if (!user) return;
+    try {
+      await deleteUserJob(user.uid, id); // Delete from Firebase
+      setCustomJobs((prev) => prev.filter((job) => job.id !== id));
+    } catch (error) {
+      console.error("Error deleting custom job from Firebase:", error);
+      // Optionally, show an error message to the user
+    }
   };
 
   const handleSignOut = async () => {
