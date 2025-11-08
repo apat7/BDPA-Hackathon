@@ -1118,7 +1118,7 @@ async def get_skills(user_id: str):
 LINKEDIN_CLIENT_ID = os.getenv("LINKEDIN_CLIENT_ID", "")
 LINKEDIN_CLIENT_SECRET = os.getenv("LINKEDIN_CLIENT_SECRET", "")
 LINKEDIN_REDIRECT_URI = os.getenv("LINKEDIN_REDIRECT_URI", "http://localhost:8000/api/linkedin/callback")
-LINKEDIN_SCOPE = "r_liteprofile r_emailaddress"  # Basic profile and email
+LINKEDIN_SCOPE = "openid profile email"  # OpenID Connect scopes (required for email access)
 
 # LinkedIn OAuth - Get authorization URL
 @app.get("/api/linkedin/authorize")
@@ -1213,59 +1213,77 @@ async def linkedin_callback(code: str, state: Optional[str] = None):
                 </html>
             """)
         
-        # Get user profile from LinkedIn
-        profile_url = "https://api.linkedin.com/v2/me"
+        # Get user profile from LinkedIn using OpenID Connect userinfo endpoint
+        userinfo_url = "https://api.linkedin.com/v2/userinfo"
         profile_headers = {"Authorization": f"Bearer {access_token}"}
-        profile_response = requests.get(profile_url, headers=profile_headers)
+        profile_response = requests.get(userinfo_url, headers=profile_headers)
         
         if profile_response.status_code != 200:
-            return HTMLResponse("""
-                <html>
-                    <body>
-                        <h2>LinkedIn OAuth Error</h2>
-                        <p>Failed to fetch profile from LinkedIn.</p>
-                        <script>
-                            window.opener.postMessage({error: 'Failed to fetch profile'}, '*');
-                            window.close();
-                        </script>
-                    </body>
-                </html>
-            """)
+            # Fallback to v2 API if OpenID Connect fails
+            profile_url = "https://api.linkedin.com/v2/me"
+            profile_response = requests.get(profile_url, headers=profile_headers)
+            if profile_response.status_code != 200:
+                return HTMLResponse("""
+                    <html>
+                        <body>
+                            <h2>LinkedIn OAuth Error</h2>
+                            <p>Failed to fetch profile from LinkedIn.</p>
+                            <script>
+                                window.opener.postMessage({error: 'Failed to fetch profile'}, '*');
+                                window.close();
+                            </script>
+                        </body>
+                    </html>
+                """)
         
         profile_data = profile_response.json()
         
-        # Get email address (requires separate API call)
-        email_url = "https://api.linkedin.com/v2/emailAddress?q=members&projection=(elements*(handle~))"
-        email_response = requests.get(email_url, headers=profile_headers)
-        email_address = ""
-        if email_response.status_code == 200:
-            email_data = email_response.json()
-            if "elements" in email_data and len(email_data["elements"]) > 0:
-                email_address = email_data["elements"][0].get("handle~", {}).get("emailAddress", "")
+        # Extract data from OpenID Connect response (or fallback to v2 format)
+        # OpenID Connect format: { "sub": "id", "name": "Full Name", "given_name": "First", "family_name": "Last", "email": "email@example.com", "picture": "url" }
+        # v2 format: { "id": "id", "firstName": { "localized": {...} }, "lastName": { "localized": {...} } }
         
-        # Get profile picture (requires separate API call)
-        picture_url = "https://api.linkedin.com/v2/me?projection=(id,firstName,lastName,profilePicture(displayImage~:playableStreams))"
-        picture_response = requests.get(picture_url, headers=profile_headers)
-        profile_picture = ""
-        if picture_response.status_code == 200:
-            picture_data = picture_response.json()
-            if "profilePicture" in picture_data:
-                display_image = picture_data["profilePicture"].get("displayImage~", {})
-                elements = display_image.get("elements", [])
-                if elements:
-                    # Get the largest image
-                    largest_image = max(elements, key=lambda x: x.get("data", {}).get("com.linkedin.digitalmedia.mediaartifact.StillImage", {}).get("storageSize", {}).get("width", 0))
-                    profile_picture = largest_image.get("identifiers", [{}])[0].get("identifier", "")
-        
-        # Extract name
-        first_name = profile_data.get("firstName", {}).get("localized", {}).get("en_US", "")
-        last_name = profile_data.get("lastName", {}).get("localized", {}).get("en_US", "")
-        full_name = f"{first_name} {last_name}".strip()
+        if "email" in profile_data:
+            # OpenID Connect format
+            email_address = profile_data.get("email", "")
+            full_name = profile_data.get("name", "")
+            first_name = profile_data.get("given_name", "")
+            last_name = profile_data.get("family_name", "")
+            profile_picture = profile_data.get("picture", "")
+            linkedin_id = profile_data.get("sub", "")
+        else:
+            # v2 API format (fallback)
+            email_address = ""
+            first_name = profile_data.get("firstName", {}).get("localized", {}).get("en_US", "")
+            last_name = profile_data.get("lastName", {}).get("localized", {}).get("en_US", "")
+            full_name = f"{first_name} {last_name}".strip()
+            linkedin_id = profile_data.get("id", "")
+            
+            # Try to get email from v2 API
+            email_url = "https://api.linkedin.com/v2/emailAddress?q=members&projection=(elements*(handle~))"
+            email_response = requests.get(email_url, headers=profile_headers)
+            if email_response.status_code == 200:
+                email_data = email_response.json()
+                if "elements" in email_data and len(email_data["elements"]) > 0:
+                    email_address = email_data["elements"][0].get("handle~", {}).get("emailAddress", "")
+            
+            # Try to get profile picture from v2 API
+            picture_url = "https://api.linkedin.com/v2/me?projection=(id,firstName,lastName,profilePicture(displayImage~:playableStreams))"
+            picture_response = requests.get(picture_url, headers=profile_headers)
+            profile_picture = ""
+            if picture_response.status_code == 200:
+                picture_data = picture_response.json()
+                if "profilePicture" in picture_data:
+                    display_image = picture_data["profilePicture"].get("displayImage~", {})
+                    elements = display_image.get("elements", [])
+                    if elements:
+                        # Get the largest image
+                        largest_image = max(elements, key=lambda x: x.get("data", {}).get("com.linkedin.digitalmedia.mediaartifact.StillImage", {}).get("storageSize", {}).get("width", 0))
+                        profile_picture = largest_image.get("identifiers", [{}])[0].get("identifier", "")
         
         # Prepare response data
         linkedin_data = {
             "access_token": access_token,
-            "linkedin_id": profile_data.get("id", ""),
+            "linkedin_id": linkedin_id,
             "name": full_name,
             "first_name": first_name,
             "last_name": last_name,
