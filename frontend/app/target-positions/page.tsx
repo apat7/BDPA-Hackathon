@@ -3,10 +3,11 @@
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Target, Filter, X, Building2, Briefcase, LogOut, Settings, User } from "lucide-react";
+import { Target, Filter, X, Building2, Briefcase, LogOut, Settings, User, PlusCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { doc, getDoc, collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import AddJobModal from "@/components/AddJobModal";
 
 interface Position {
   id: string;
@@ -15,6 +16,9 @@ interface Position {
   requiredSkills: string[];
   description?: string;
   company?: string;
+  isCustom?: boolean; // Added for custom jobs
+  jobUrl?: string; // Added for custom jobs
+  userId?: string; // Added to link custom jobs to users
 }
 
 interface PositionWithProgress extends Position {
@@ -28,10 +32,12 @@ export default function TargetPositionsPage() {
   const router = useRouter();
   const [userSkills, setUserSkills] = useState<string[]>([]);
   const [positions, setPositions] = useState<Position[]>([]);
+  const [customJobs, setCustomJobs] = useState<Position[]>([]); // New state for custom jobs
   const [loadingData, setLoadingData] = useState(true);
   const [selectedIndustry, setSelectedIndustry] = useState<string>("all");
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [filterByMySkills, setFilterByMySkills] = useState(false);
+  const [isAddJobModalOpen, setIsAddJobModalOpen] = useState(false); // State for modal visibility
 
   useEffect(() => {
     if (!loading && !user) {
@@ -117,7 +123,8 @@ export default function TargetPositionsPage() {
   };
 
   const positionsWithProgress: PositionWithProgress[] = useMemo(() => {
-    return positions.map((position) => {
+    const allPositions = [...positions, ...customJobs.filter(job => job.userId === user?.uid)]; // Include custom jobs
+    return allPositions.map((position) => {
       const { percentage, matching, missing } = calculateCompletionPercentage(
         position.requiredSkills,
         userSkills
@@ -129,7 +136,7 @@ export default function TargetPositionsPage() {
         missingSkills: missing,
       };
     });
-  }, [positions, userSkills]);
+  }, [positions, customJobs, userSkills, user]);
 
   const industries = useMemo(() => {
     const uniqueIndustries = Array.from(
@@ -175,6 +182,26 @@ export default function TargetPositionsPage() {
 
     return filtered;
   }, [positionsWithProgress, selectedIndustry, selectedSkills, filterByMySkills]);
+
+  const handleAddCustomJob = (jobDetails: { title: string; company: string; industry: string; description: string; requiredSkills: string }) => {
+    if (!user) return;
+    const newCustomJob: Position = {
+      id: `custom-${Date.now()}`, // Unique ID for custom job
+      title: jobDetails.title,
+      company: jobDetails.company,
+      industry: jobDetails.industry,
+      requiredSkills: jobDetails.requiredSkills.split(",").map((skill) => skill.trim()).filter(Boolean),
+      description: jobDetails.description,
+      isCustom: true,
+      userId: user.uid, // Link to the current user
+    };
+    setCustomJobs((prev) => [...prev, newCustomJob]);
+    setIsAddJobModalOpen(false); // Close modal after submission
+  };
+
+  const handleDeleteCustomJob = (id: string) => {
+    setCustomJobs((prev) => prev.filter((job) => job.id !== id));
+  };
 
   const handleSignOut = async () => {
     try {
@@ -260,6 +287,13 @@ export default function TargetPositionsPage() {
           <p className="text-xl text-slate-600 dark:text-slate-300">
             Explore positions and see how your skills match
           </p>
+          <button
+            onClick={() => setIsAddJobModalOpen(true)}
+            className="mt-4 px-6 py-3 rounded-full bg-blue-600 text-white font-semibold shadow-lg hover:bg-blue-700 transition-all duration-300 flex items-center gap-2 animate-fade-in-up"
+          >
+            <PlusCircle className="w-5 h-5" />
+            Add Custom Job
+          </button>
         </div>
 
         {/* Filters */}
@@ -363,9 +397,25 @@ export default function TargetPositionsPage() {
                   <div className="flex items-start justify-between mb-2">
                     <h3 className="text-xl font-bold text-slate-900 dark:text-white flex-1">
                       {position.title}
+                      {position.isCustom && (
+                        <span className="ml-2 px-2 py-1 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs font-semibold">
+                          Custom
+                        </span>
+                      )}
                     </h3>
-                    <div className="ml-2 px-3 py-1 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-sm font-semibold">
-                      {position.completionPercentage}%
+                    <div className="flex items-center gap-2">
+                      <div className="px-3 py-1 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-sm font-semibold">
+                        {position.completionPercentage}%
+                      </div>
+                      {position.isCustom && position.userId === user?.uid && (
+                        <button
+                          onClick={() => handleDeleteCustomJob(position.id)}
+                          className="p-1 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-800 transition-colors"
+                          title="Delete custom job"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
@@ -450,7 +500,11 @@ export default function TargetPositionsPage() {
           </div>
         )}
       </div>
+      <AddJobModal
+        isOpen={isAddJobModalOpen}
+        onClose={() => setIsAddJobModalOpen(false)}
+        onSubmit={handleAddCustomJob}
+      />
     </div>
   );
 }
-
