@@ -5,6 +5,10 @@ from typing import List, Optional
 import uvicorn
 import os
 from datetime import datetime
+from vosk import Model, KaldiRecognizer
+import json
+import subprocess
+import tempfile
 
 # Create FastAPI instance
 app = FastAPI(
@@ -48,10 +52,144 @@ next_id = 1
 skills_db = {}  # Dictionary to store skills by user_id
 
 # Create directories if they don't exist
-RECORDINGS_DIR = "recordings"
-RESUMES_DIR = "resumes"
+# Use absolute paths based on the script location
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+RECORDINGS_DIR = os.path.join(BASE_DIR, "..", "recordings")
+RESUMES_DIR = os.path.join(BASE_DIR, "..", "resumes")
+# Normalize paths (resolve ..)
+RECORDINGS_DIR = os.path.normpath(RECORDINGS_DIR)
+RESUMES_DIR = os.path.normpath(RESUMES_DIR)
 os.makedirs(RECORDINGS_DIR, exist_ok=True)
 os.makedirs(RESUMES_DIR, exist_ok=True)
+
+# Vosk model path - will download if not present
+VOSK_MODEL_DIR = os.path.join(BASE_DIR, "vosk-model")
+VOSK_MODEL_URL = "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip"
+VOSK_MODEL_NAME = "vosk-model-small-en-us-0.15"
+
+# Initialize Vosk model (lazy loading)
+vosk_model = None
+
+def get_vosk_model():
+    """Load Vosk model, downloading if necessary."""
+    global vosk_model
+    if vosk_model is None:
+        model_path = os.path.join(VOSK_MODEL_DIR, VOSK_MODEL_NAME)
+        
+        # Check if model exists
+        if not os.path.exists(model_path):
+            print(f"Vosk model not found at {model_path}")
+            print("Please download a Vosk model from https://alphacephei.com/vosk/models")
+            print(f"For example: wget {VOSK_MODEL_URL}")
+            print(f"Then extract to: {VOSK_MODEL_DIR}")
+            raise Exception(f"Vosk model not found. Please download and extract to {model_path}")
+        
+        print(f"Loading Vosk model from {model_path}...")
+        vosk_model = Model(model_path)
+        print("Vosk model loaded successfully")
+    
+    return vosk_model
+
+def transcribe_audio(audio_file_path: str) -> str:
+    """
+    Transcribe audio file using Vosk (offline speech recognition).
+    Converts audio to wav format if needed.
+    """
+    try:
+        # Get Vosk model
+        model = get_vosk_model()
+        
+        # Convert audio to wav format with specific sample rate (Vosk requires 16kHz mono)
+        wav_path = None
+        file_ext = os.path.splitext(audio_file_path)[1].lower()
+        
+        if file_ext == '.wav':
+            # Check if we need to convert sample rate
+            wav_path = audio_file_path
+        else:
+            # Convert to wav using ffmpeg
+            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp_file:
+                wav_path = tmp_file.name
+            
+            try:
+                # Convert to 16kHz mono WAV (required by Vosk)
+                # Add -y to overwrite, -loglevel error to reduce output, and increase timeout
+                # Use stderr=subprocess.DEVNULL to suppress warnings that might cause issues
+                result = subprocess.run(
+                    ['ffmpeg', '-y', '-loglevel', 'error', '-i', audio_file_path, '-ar', '16000', '-ac', '1', '-f', 'wav', wav_path],
+                    check=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    timeout=60  # Increased timeout to 60 seconds
+                )
+                
+                # Verify the output file was created and has content
+                if not os.path.exists(wav_path) or os.path.getsize(wav_path) == 0:
+                    return "Audio conversion failed: output file was not created or is empty"
+                    
+            except subprocess.TimeoutExpired:
+                # Clean up the temp file if conversion timed out
+                if os.path.exists(wav_path):
+                    try:
+                        os.unlink(wav_path)
+                    except:
+                        pass
+                return f"Audio conversion timed out. The file might be too large or corrupted."
+            except subprocess.CalledProcessError as e:
+                error_msg = e.stderr.decode('utf-8', errors='ignore') if e.stderr else str(e)
+                # Clean up failed conversion
+                if os.path.exists(wav_path):
+                    try:
+                        os.unlink(wav_path)
+                    except:
+                        pass
+                return f"Error converting audio with ffmpeg: {error_msg}"
+            except FileNotFoundError:
+                return "ffmpeg not found. Please install ffmpeg (brew install ffmpeg on macOS)"
+        
+        # Create recognizer with sample rate 16000
+        rec = KaldiRecognizer(model, 16000)
+        rec.SetWords(True)  # Enable word timestamps
+        
+        # Read and process audio
+        transcript_parts = []
+        
+        with open(wav_path, 'rb') as wf:
+            # Skip WAV header (44 bytes)
+            wf.seek(44)
+            
+            while True:
+                data = wf.read(4000)
+                if len(data) == 0:
+                    break
+                
+                if rec.AcceptWaveform(data):
+                    result = json.loads(rec.Result())
+                    if 'text' in result and result['text']:
+                        transcript_parts.append(result['text'])
+            
+            # Get final result
+            final_result = json.loads(rec.FinalResult())
+            if 'text' in final_result and final_result['text']:
+                transcript_parts.append(final_result['text'])
+        
+        # Clean up temporary file if we created one
+        if wav_path != audio_file_path and os.path.exists(wav_path):
+            try:
+                os.unlink(wav_path)
+            except:
+                pass
+        
+        # Combine all transcript parts
+        full_text = ' '.join(transcript_parts).strip()
+        
+        if not full_text:
+            return "Could not understand audio"
+        
+        return full_text
+        
+    except Exception as e:
+        return f"Error transcribing audio: {str(e)}"
 
 # Root endpoint
 @app.get("/")
@@ -134,15 +272,49 @@ async def upload_recording(audio: UploadFile = File(...)):
         file_path = os.path.join(RECORDINGS_DIR, filename)
         
         # Save the file
+        content = await audio.read()
         with open(file_path, "wb") as f:
-            content = await audio.read()
             f.write(content)
         
+        # Transcribe the audio
+        transcription_text = ""
+        transcription_filename = f"transcription_{timestamp}.txt"
+        transcription_path = os.path.join(RECORDINGS_DIR, transcription_filename)
+        
+        try:
+            # Transcribe the audio file
+            print(f"Starting transcription for: {file_path}")
+            transcription_text = transcribe_audio(file_path)
+            print(f"Transcription result: {transcription_text[:100]}...")  # Print first 100 chars
+            
+            # Always save transcription to file (even if it contains an error message)
+            print(f"Saving transcription to: {transcription_path}")
+            with open(transcription_path, "w", encoding="utf-8") as f:
+                f.write(transcription_text)
+            print(f"Transcription saved successfully")
+            
+        except Exception as transcribe_error:
+            # If transcription fails, still save the error message to file
+            error_msg = f"Transcription failed: {str(transcribe_error)}"
+            print(f"Transcription error: {error_msg}")
+            transcription_text = error_msg
+            try:
+                with open(transcription_path, "w", encoding="utf-8") as f:
+                    f.write(transcription_text)
+                print(f"Error message saved to: {transcription_path}")
+            except Exception as save_error:
+                # If we can't even save the error, log it
+                print(f"Failed to save transcription error: {str(save_error)}")
+                transcription_path = None
+        
         return {
-            "message": "Recording saved successfully",
+            "message": "Recording saved and transcribed successfully",
             "filename": filename,
             "file_path": file_path,
-            "size": len(content)
+            "size": len(content),
+            "transcription": transcription_text,
+            "transcription_file": transcription_filename if transcription_path else None,
+            "transcription_path": transcription_path
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error saving recording: {str(e)}")

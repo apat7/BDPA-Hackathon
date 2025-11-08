@@ -2,3 +2,11 @@ fastapi==0.115.0
 uvicorn[standard]==0.32.0
 pydantic==2.10.0
 python-multipart==0.0.6
+SpeechRecognition==3.10.0
+pydub==0.25.1
+requests==2.31.0
+vosk==0.3.44
+pytranscript==0.3.0
+ffmpeg-python==0.2.0
+deep-translator==1.11.4
+typed-argument-parser==1.11.0
