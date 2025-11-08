@@ -1,1 +1,0 @@
-ffmpeg not found. Please install ffmpeg (brew install ffmpeg on macOS)

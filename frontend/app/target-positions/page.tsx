@@ -3,10 +3,12 @@
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Target, Filter, X, Building2, Briefcase, LogOut, Settings, User } from "lucide-react";
+import { Target, Filter, X, Building2, Briefcase, LogOut, Settings, User, PlusCircle, Star } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { doc, getDoc, collection, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db, saveUserJob, fetchUserJobs, deleteUserJob, saveFocusedPosition, removeFocusedPosition, fetchFocusedPositions } from "@/lib/firebase";
+import AddJobModal from "@/components/AddJobModal";
+import PositionDetailModal from "@/components/PositionDetailModal";
 
 interface Position {
   id: string;
@@ -15,12 +17,16 @@ interface Position {
   requiredSkills: string[];
   description?: string;
   company?: string;
+  isCustom?: boolean; // Added for custom jobs
+  jobUrl?: string; // Added for custom jobs
+  userId?: string; // Added to link custom jobs to users
 }
 
 interface PositionWithProgress extends Position {
   completionPercentage: number;
   matchingSkills: string[];
   missingSkills: string[];
+  isFocused?: boolean;
 }
 
 export default function TargetPositionsPage() {
@@ -28,10 +34,18 @@ export default function TargetPositionsPage() {
   const router = useRouter();
   const [userSkills, setUserSkills] = useState<string[]>([]);
   const [positions, setPositions] = useState<Position[]>([]);
+  const [customJobs, setCustomJobs] = useState<Position[]>([]); // New state for custom jobs
   const [loadingData, setLoadingData] = useState(true);
   const [selectedIndustry, setSelectedIndustry] = useState<string>("all");
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [filterByMySkills, setFilterByMySkills] = useState(false);
+  const [filterCustomJobsOnly, setFilterCustomJobsOnly] = useState(false);
+  const [isAddJobModalOpen, setIsAddJobModalOpen] = useState(false);
+  const [focusedPositionIds, setFocusedPositionIds] = useState<Set<string>>(new Set());
+  const [selectedPosition, setSelectedPosition] = useState<PositionWithProgress | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [courseraRecommendations, setCourseraRecommendations] = useState<any[]>([]);
+  const [loadingRecommendations, setLoadingRecommendations] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -43,8 +57,55 @@ export default function TargetPositionsPage() {
     if (user) {
       fetchUserSkills();
       fetchPositions();
+      fetchAndSetUserJobs(); // Fetch custom jobs for the user
+      fetchFocusedPositionsIds(); // Fetch focused positions
     }
   }, [user]);
+
+  const fetchCourseraRecommendations = async (skills: string[]) => {
+    setLoadingRecommendations(true);
+    try {
+      const response = await fetch("/api/coursera-recommendations", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ skills }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setCourseraRecommendations(data.recommendations);
+      } else {
+        console.error("Failed to fetch Coursera recommendations:", data.error);
+        setCourseraRecommendations([]);
+      }
+    } catch (error) {
+      console.error("Error fetching Coursera recommendations:", error);
+      setCourseraRecommendations([]);
+    } finally {
+      setLoadingRecommendations(false);
+    }
+  };
+
+  const fetchAndSetUserJobs = async () => {
+    if (!user) return;
+    try {
+      const userJobs = await fetchUserJobs(user.uid);
+      setCustomJobs(userJobs);
+    } catch (error) {
+      console.error("Error fetching user's custom jobs:", error);
+    }
+  };
+
+  const fetchFocusedPositionsIds = async () => {
+    if (!user) return;
+    try {
+      const focusedIds = await fetchFocusedPositions(user.uid);
+      setFocusedPositionIds(new Set(focusedIds));
+    } catch (error) {
+      console.error("Error fetching focused positions:", error);
+    }
+  };
 
   const fetchUserSkills = async () => {
     if (!user) return;
@@ -117,7 +178,8 @@ export default function TargetPositionsPage() {
   };
 
   const positionsWithProgress: PositionWithProgress[] = useMemo(() => {
-    return positions.map((position) => {
+    const allPositions = [...positions, ...customJobs.filter(job => job.userId === user?.uid)]; // Include custom jobs
+    return allPositions.map((position) => {
       const { percentage, matching, missing } = calculateCompletionPercentage(
         position.requiredSkills,
         userSkills
@@ -127,9 +189,10 @@ export default function TargetPositionsPage() {
         completionPercentage: percentage,
         matchingSkills: matching,
         missingSkills: missing,
+        isFocused: focusedPositionIds.has(position.id),
       };
     });
-  }, [positions, userSkills]);
+  }, [positions, customJobs, userSkills, user, focusedPositionIds]);
 
   const industries = useMemo(() => {
     const uniqueIndustries = Array.from(
@@ -150,6 +213,11 @@ export default function TargetPositionsPage() {
 
   const filteredPositions = useMemo(() => {
     let filtered = positionsWithProgress;
+
+    // Filter by custom jobs only
+    if (filterCustomJobsOnly) {
+      filtered = filtered.filter((p) => p.isCustom === true);
+    }
 
     // Filter by industry
     if (selectedIndustry !== "all") {
@@ -174,7 +242,43 @@ export default function TargetPositionsPage() {
     }
 
     return filtered;
-  }, [positionsWithProgress, selectedIndustry, selectedSkills, filterByMySkills]);
+  }, [positionsWithProgress, selectedIndustry, selectedSkills, filterByMySkills, filterCustomJobsOnly]);
+
+  const handleAddCustomJob = async (jobDetails: { title: string; company: string; industry: string; description: string; requiredSkills: string }) => {
+    if (!user) return;
+    const newCustomJob: Position = {
+      id: `custom-${Date.now()}`, // Unique ID for custom job
+      title: jobDetails.title,
+      company: jobDetails.company,
+      industry: jobDetails.industry,
+      requiredSkills: jobDetails.requiredSkills.split(",").map((skill) => skill.trim()).filter(Boolean),
+      description: jobDetails.description,
+      isCustom: true,
+      userId: user.uid, // Link to the current user
+    };
+    try {
+      await saveUserJob(user.uid, newCustomJob); // Save to Firebase
+      // Refetch custom jobs from Firebase to ensure the new job appears with correct data
+      await fetchAndSetUserJobs();
+      setIsAddJobModalOpen(false); // Close modal after successful submission
+    } catch (error: any) {
+      console.error("Error saving custom job to Firebase:", error);
+      // Show more detailed error message
+      const errorMessage = error?.message || error?.code || "Unknown error";
+      alert(`Failed to save custom job: ${errorMessage}. Please try again.`);
+    }
+  };
+
+  const handleDeleteCustomJob = async (id: string) => {
+    if (!user) return;
+    try {
+      await deleteUserJob(user.uid, id); // Delete from Firebase
+      setCustomJobs((prev) => prev.filter((job) => job.id !== id));
+    } catch (error) {
+      console.error("Error deleting custom job from Firebase:", error);
+      // Optionally, show an error message to the user
+    }
+  };
 
   const handleSignOut = async () => {
     try {
@@ -190,6 +294,52 @@ export default function TargetPositionsPage() {
         ? prev.filter((s) => s !== skill)
         : [...prev, skill]
     );
+  };
+
+  const handlePositionClick = (position: PositionWithProgress) => {
+    setSelectedPosition(position);
+    setIsDetailModalOpen(true);
+    if (position.missingSkills.length > 0) {
+      fetchCourseraRecommendations(position.missingSkills);
+    } else {
+      setCourseraRecommendations([]);
+    }
+  };
+
+  const handleCloseModal = () => {
+    setIsDetailModalOpen(false);
+    setSelectedPosition(null);
+    setCourseraRecommendations([]); // Clear recommendations when modal closes
+  };
+
+  const handleToggleFocus = async (positionId: string) => {
+    if (!user) return;
+    
+    const isCurrentlyFocused = focusedPositionIds.has(positionId);
+    
+    try {
+      if (isCurrentlyFocused) {
+        await removeFocusedPosition(user.uid, positionId);
+        setFocusedPositionIds((prev) => {
+          const newSet = new Set(prev);
+          newSet.delete(positionId);
+          return newSet;
+        });
+      } else {
+        await saveFocusedPosition(user.uid, positionId);
+        setFocusedPositionIds((prev) => new Set(prev).add(positionId));
+      }
+      
+      // Update selected position if modal is open
+      if (selectedPosition && selectedPosition.id === positionId) {
+        setSelectedPosition({
+          ...selectedPosition,
+          isFocused: !isCurrentlyFocused,
+        });
+      }
+    } catch (error) {
+      console.error("Error toggling focus:", error);
+    }
   };
 
   const getProgressColor = (percentage: number) => {
@@ -278,6 +428,13 @@ export default function TargetPositionsPage() {
           <p className="text-xl text-slate-600 dark:text-slate-300">
             Explore positions and see how your skills match
           </p>
+          <button
+            onClick={() => setIsAddJobModalOpen(true)}
+            className="mt-4 px-6 py-3 rounded-full bg-blue-600 text-white font-semibold shadow-lg hover:bg-blue-700 transition-all duration-300 flex items-center gap-2 animate-fade-in-up"
+          >
+            <PlusCircle className="w-5 h-5" />
+            Add Custom Job
+          </button>
         </div>
 
         {/* Filters */}
@@ -321,6 +478,23 @@ export default function TargetPositionsPage() {
                 className="text-sm font-medium text-slate-700 dark:text-slate-300 cursor-pointer"
               >
                 Show only positions matching my skills
+              </label>
+            </div>
+
+            {/* Filter by Custom Jobs Only Toggle */}
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="filterCustomJobsOnly"
+                checked={filterCustomJobsOnly}
+                onChange={(e) => setFilterCustomJobsOnly(e.target.checked)}
+                className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-2 focus:ring-blue-500"
+              />
+              <label
+                htmlFor="filterCustomJobsOnly"
+                className="text-sm font-medium text-slate-700 dark:text-slate-300 cursor-pointer"
+              >
+                Show only custom jobs
               </label>
             </div>
 
@@ -373,7 +547,8 @@ export default function TargetPositionsPage() {
             {filteredPositions.map((position, index) => (
               <div
                 key={position.id}
-                className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl rounded-2xl p-6 border border-slate-200 dark:border-slate-700 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 animate-fade-in-up"
+                onClick={() => handlePositionClick(position)}
+                className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl rounded-2xl p-6 border border-slate-200 dark:border-slate-700 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 animate-fade-in-up cursor-pointer"
                 style={{ animationDelay: `${index * 0.1}s` }}
               >
                 {/* Header */}
@@ -381,9 +556,28 @@ export default function TargetPositionsPage() {
                   <div className="flex items-start justify-between mb-2">
                     <h3 className="text-xl font-bold text-slate-900 dark:text-white flex-1">
                       {position.title}
+                      {position.isCustom && (
+                        <span className="ml-2 px-2 py-1 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs font-semibold">
+                          Custom
+                        </span>
+                      )}
+                      {position.isFocused && (
+                        <Star className="w-4 h-4 text-yellow-500 fill-yellow-500 inline-block ml-2" />
+                      )}
                     </h3>
-                    <div className="ml-2 px-3 py-1 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-sm font-semibold">
-                      {position.completionPercentage}%
+                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                      <div className="px-3 py-1 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-sm font-semibold">
+                        {position.completionPercentage}%
+                      </div>
+                      {position.isCustom && position.userId === user?.uid && (
+                        <button
+                          onClick={() => handleDeleteCustomJob(position.id)}
+                          className="p-1 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-800 transition-colors"
+                          title="Delete custom job"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
@@ -491,7 +685,20 @@ export default function TargetPositionsPage() {
           © 2024 SkillBridge. All rights reserved.
         </div>
       </footer>
+
+      <AddJobModal
+        isOpen={isAddJobModalOpen}
+        onClose={() => setIsAddJobModalOpen(false)}
+        onSubmit={handleAddCustomJob}
+      />
+      <PositionDetailModal
+        isOpen={isDetailModalOpen}
+        onClose={handleCloseModal}
+        position={selectedPosition}
+        onToggleFocus={() => selectedPosition && handleToggleFocus(selectedPosition.id)}
+        courseraRecommendations={courseraRecommendations}
+        loadingRecommendations={loadingRecommendations}
+      />
     </div>
   );
 }
-

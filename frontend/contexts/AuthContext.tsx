@@ -14,6 +14,16 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
 
+export interface UserDocument {
+  email: string | null;
+  displayName: string | null;
+  photoURL: string | null;
+  createdAt: string;
+  hasCompletedSkillsSetup: boolean;
+  skills: Array<{ skill: string; level: string }>;
+  skillsUpdatedAt?: string;
+}
+
 interface AuthContextType {
   user: User | null;
   loading: boolean;
@@ -77,6 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           photoURL: user.photoURL,
           createdAt: new Date().toISOString(),
           hasCompletedSkillsSetup: false,
+          skills: [],
         });
         router.push("/skills-setup");
       } else {
@@ -121,6 +132,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         photoURL: user.photoURL || null,
         createdAt: new Date().toISOString(),
         hasCompletedSkillsSetup: false,
+        skills: [],
       });
 
       router.push("/skills-setup");

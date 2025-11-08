@@ -13,7 +13,6 @@ import re
 import google.generativeai as genai
 import firebase_admin
 from firebase_admin import credentials, firestore
-
 # Create FastAPI instance
 app = FastAPI(
     title="Fast Python API",
