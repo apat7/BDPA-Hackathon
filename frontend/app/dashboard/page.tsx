@@ -268,14 +268,15 @@ export default function Dashboard() {
     return skillGaps.slice(0, 4);
   }, [skillGaps]);
 
-  const getProgressColor = (priority: "High" | "Medium" | "Low") => {
-    switch (priority) {
-      case "High":
-        return "from-orange-500 to-orange-600";
-      case "Medium":
-        return "from-yellow-500 to-yellow-600";
-      case "Low":
-        return "from-blue-500 to-blue-600";
+  const getProgressColor = (percentage: number) => {
+    if (percentage >= 75) {
+      return "bg-red-500"; // Very high need
+    } else if (percentage >= 50) {
+      return "bg-orange-500"; // High need
+    } else if (percentage >= 25) {
+      return "bg-yellow-500"; // Medium need
+    } else {
+      return "bg-green-500"; // Low need
     }
   };
 
@@ -440,7 +441,7 @@ export default function Dashboard() {
                     </div>
                     <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
                       <div
-                        className={`h-full bg-gradient-to-r ${getProgressColor(gap.priority)} rounded-full transition-all duration-1000 ease-out`}
+                        className={`h-full ${getProgressColor(gap.percentage)} rounded-full transition-all duration-1000 ease-out`}
                         style={{ width: `${gap.percentage}%` }}
                       ></div>
                     </div>
