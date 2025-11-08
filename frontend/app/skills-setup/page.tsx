@@ -26,6 +26,13 @@ export default function SkillsSetupPage() {
   const [skillsSaveSuccess, setSkillsSaveSuccess] = useState(false);
   const [skillsSaveError, setSkillsSaveError] = useState<string | null>(null);
   
+  // Text processing states
+  const [textInput, setTextInput] = useState("");
+  const [isProcessingText, setIsProcessingText] = useState(false);
+  const [processingError, setProcessingError] = useState<string | null>(null);
+  const [processedSkills, setProcessedSkills] = useState<SkillWithLevel[]>([]);
+  const [showProcessedSkills, setShowProcessedSkills] = useState(false);
+  
   // Resume upload states
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploadingResume, setIsUploadingResume] = useState(false);
@@ -240,6 +247,65 @@ export default function SkillsSetupPage() {
     }
   };
 
+  // Process text with Gemini API
+  const handleProcessText = async () => {
+    if (!user) {
+      setProcessingError("You must be logged in to process skills.");
+      return;
+    }
+
+    if (!textInput.trim()) {
+      setProcessingError("Please enter some text describing your skills.");
+      return;
+    }
+
+    setIsProcessingText(true);
+    setProcessingError(null);
+    setShowProcessedSkills(false);
+
+    try {
+      const response = await fetch("http://localhost:8000/api/skills/process-text", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          text: textInput,
+          user_id: user.uid,
+        }),
+      });
+
+      if (!response.ok) {
+        let errorMessage = "Failed to process text";
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.detail || errorData.message || errorMessage;
+        } catch {
+          errorMessage = response.statusText || errorMessage;
+        }
+        throw new Error(errorMessage);
+      }
+
+      const result = await response.json();
+      
+      // Convert processed skills to SkillWithLevel format
+      const skillsWithLevels: SkillWithLevel[] = result.skills.map((s: any) => ({
+        skill: s.skill,
+        level: s.level || "Intermediate",
+      }));
+      
+      setProcessedSkills(skillsWithLevels);
+      setSelectedSkills(skillsWithLevels);
+      setShowProcessedSkills(true);
+    } catch (err) {
+      console.error("Error processing text:", err);
+      const errorMessage = err instanceof Error ? err.message : "Failed to process text. Please try again.";
+      setProcessingError(errorMessage);
+    } finally {
+      setIsProcessingText(false);
+    }
+  };
+
   // Save skills to backend
   const handleSaveSkills = async () => {
     if (!user) {
@@ -435,15 +501,73 @@ export default function SkillsSetupPage() {
             <div className="animate-fade-in-up animate-delay-300">
               {selectedMethod === "typing" && (
                 <div className="space-y-4">
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Enter your skills
-                  </label>
-                  <TagInput
-                    skills={SKILLS_LIST}
-                    selectedSkills={selectedSkills}
-                    onSkillsChange={setSelectedSkills}
-                    placeholder="Type to search skills..."
-                  />
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                      Option 1: Type your skills as free-form text
+                    </label>
+                    <textarea
+                      value={textInput}
+                      onChange={(e) => {
+                        setTextInput(e.target.value);
+                        setProcessingError(null);
+                        setShowProcessedSkills(false);
+                      }}
+                      placeholder="Describe your skills... (e.g., 'I have 3 years of experience with JavaScript, React, and Node.js. I'm also proficient in Python and have worked with AWS and Docker. I'm a good communicator and have led several projects.')"
+                      className="w-full h-32 px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 hover:border-blue-400 focus:scale-[1.01] transform resize-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleProcessText}
+                      disabled={isProcessingText || !textInput.trim()}
+                      className="mt-2 w-full px-6 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold hover:from-purple-700 hover:to-pink-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 transform disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isProcessingText ? "Processing with AI..." : "Process with AI"}
+                    </button>
+                    {processingError && (
+                      <p className="text-sm text-red-500 mt-2">{processingError}</p>
+                    )}
+                    {showProcessedSkills && processedSkills.length > 0 && (
+                      <div className="mt-4 p-4 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                        <p className="text-sm font-semibold text-green-900 dark:text-green-300 mb-2">
+                          ✓ Found {processedSkills.length} skills:
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {processedSkills.map((skill) => (
+                            <span
+                              key={skill.skill}
+                              className="px-2 py-1 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-xs font-medium"
+                            >
+                              {skill.skill} ({skill.level})
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-slate-300 dark:border-slate-600"></div>
+                    </div>
+                    <div className="relative flex justify-center text-sm">
+                      <span className="px-2 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                        OR
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                      Option 2: Select skills from the list
+                    </label>
+                    <TagInput
+                      skills={SKILLS_LIST}
+                      selectedSkills={selectedSkills}
+                      onSkillsChange={setSelectedSkills}
+                      placeholder="Type to search skills..."
+                    />
+                  </div>
+
                   {selectedSkills.length > 0 && (
                     <div className="pt-4">
                       <button

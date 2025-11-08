@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict
 import uvicorn
 import os
 from datetime import datetime
@@ -9,6 +9,10 @@ from vosk import Model, KaldiRecognizer
 import json
 import subprocess
 import tempfile
+import re
+import google.generativeai as genai
+import firebase_admin
+from firebase_admin import credentials, firestore
 
 # Create FastAPI instance
 app = FastAPI(
@@ -46,10 +50,56 @@ class SkillsRequest(BaseModel):
     user_id: str
     skills: List[SkillWithLevel]
 
+class ProcessTextRequest(BaseModel):
+    text: str
+    user_id: str
+
+class CategorizedSkill(BaseModel):
+    skill: str
+    category: str
+    level: str = "Intermediate"
+
+class ProcessTextResponse(BaseModel):
+    skills: List[CategorizedSkill]
+    categories: Dict[str, List[str]]
+
 # In-memory storage (replace with database in production)
 items_db = []
 next_id = 1
-skills_db = {}  # Dictionary to store skills by user_id
+skills_db = {}  # Dictionary to store skills by user_id (fallback)
+
+# Initialize Firebase Admin SDK
+try:
+    # Check if Firebase is already initialized
+    if not firebase_admin._apps:
+        # Try to initialize with service account credentials from environment
+        firebase_creds = os.getenv("FIREBASE_CREDENTIALS")
+        if firebase_creds:
+            cred_dict = json.loads(firebase_creds)
+            cred = credentials.Certificate(cred_dict)
+            firebase_admin.initialize_app(cred)
+        else:
+            # Try to use default credentials or service account file
+            try:
+                cred = credentials.ApplicationDefault()
+                firebase_admin.initialize_app(cred)
+            except:
+                # If no credentials found, Firestore operations will fail gracefully
+                print("Warning: Firebase Admin SDK not initialized. Firestore operations will use fallback.")
+    db = firestore.client()
+except Exception as e:
+    print(f"Warning: Could not initialize Firebase Admin SDK: {e}")
+    db = None
+
+# Initialize Gemini API
+try:
+    gemini_api_key = os.getenv("GEMINI_API_KEY")
+    if gemini_api_key:
+        genai.configure(api_key=gemini_api_key)
+    else:
+        print("Warning: GEMINI_API_KEY not found. Gemini features will not work.")
+except Exception as e:
+    print(f"Warning: Could not configure Gemini API: {e}")
 
 # Create directories if they don't exist
 # Use absolute paths based on the script location
@@ -190,6 +240,91 @@ def transcribe_audio(audio_file_path: str) -> str:
         
     except Exception as e:
         return f"Error transcribing audio: {str(e)}"
+
+# Skill categories/buckets
+SKILL_CATEGORIES = {
+    "Programming Languages": [
+        "JavaScript", "TypeScript", "Python", "Java", "C++", "C#", "Go", "Rust", 
+        "Swift", "Kotlin", "PHP", "Ruby", "Scala", "R", "MATLAB", "Perl", "Lua"
+    ],
+    "Web Frameworks": [
+        "React", "Vue.js", "Angular", "Next.js", "Node.js", "Express", "Django", 
+        "Flask", "FastAPI", "Spring", "ASP.NET", "Laravel", "Rails", "Svelte"
+    ],
+    "Tools & Technologies": [
+        "Git", "Docker", "Kubernetes", "AWS", "Azure", "GCP", "MongoDB", 
+        "PostgreSQL", "MySQL", "Redis", "Elasticsearch", "GraphQL", "REST APIs",
+        "CI/CD", "Terraform", "Ansible", "Linux", "Jenkins", "GitHub Actions"
+    ],
+    "Soft Skills": [
+        "Communication", "Team Leadership", "Project Management", "Problem Solving",
+        "Agile", "Scrum", "Collaboration", "Time Management", "Critical Thinking",
+        "Adaptability", "Creativity", "Presentation Skills", "Negotiation"
+    ]
+}
+
+# Build a set of all valid skills from categories (for whitelist validation)
+def get_all_valid_skills() -> set:
+    """Get a set of all valid skill names from SKILL_CATEGORIES."""
+    all_skills = set()
+    for category, skills in SKILL_CATEGORIES.items():
+        for skill in skills:
+            all_skills.add(skill.lower())
+    return all_skills
+
+# Build conflict map: maps longer skills to shorter skills they contain as substrings
+def build_skill_conflict_map() -> Dict[str, List[str]]:
+    """
+    Build a dictionary mapping longer skills to shorter skills they contain.
+    Example: {"JavaScript": ["Java", "R"], "TypeScript": ["Script"], "React": ["R", "Act"]}
+    """
+    conflict_map = {}
+    all_skills = []
+    
+    # Collect all skills from categories
+    for category, skills in SKILL_CATEGORIES.items():
+        all_skills.extend(skills)
+    
+    # For each skill, check if it contains any other skill as a substring
+    for skill in all_skills:
+        skill_lower = skill.lower()
+        conflicts = []
+        
+        for other_skill in all_skills:
+            if skill == other_skill:
+                continue
+            
+            other_skill_lower = other_skill.lower()
+            
+            # Check if other_skill appears as a substring in skill
+            # But not at word boundaries (to avoid false positives)
+            # We want to catch cases like "Java" in "JavaScript" but not "Go" in "MongoDB"
+            if other_skill_lower in skill_lower:
+                # Make sure it's not just a word boundary match
+                # Check if it's actually embedded (not at start/end with word boundaries)
+                idx = skill_lower.find(other_skill_lower)
+                if idx != -1:
+                    # Check if it's not a complete word match
+                    # If it's at the start and followed by a letter, or in the middle, it's a conflict
+                    if idx == 0 and len(skill_lower) > len(other_skill_lower):
+                        # Check if next character is a letter (not a word boundary)
+                        if len(skill_lower) > len(other_skill_lower):
+                            next_char_idx = len(other_skill_lower)
+                            if next_char_idx < len(skill_lower) and skill_lower[next_char_idx].isalpha():
+                                conflicts.append(other_skill)
+                    elif idx > 0:
+                        # In the middle or end - check if preceded by a letter
+                        if skill_lower[idx - 1].isalpha():
+                            conflicts.append(other_skill)
+        
+        if conflicts:
+            conflict_map[skill] = conflicts
+    
+    return conflict_map
+
+# Pre-compute conflict map and valid skills set
+SKILL_CONFLICT_MAP = build_skill_conflict_map()
+VALID_SKILLS_SET = get_all_valid_skills()
 
 # Root endpoint
 @app.get("/")
@@ -393,11 +528,527 @@ async def upload_resume(resume: UploadFile = File(...)):
                 status_code=500,
                 detail=f"Error converting resume to text: {str(conversion_error)}"
             )
-        
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error saving resume: {str(e)}")
+
+# Helper function to extract years of experience mentioned near a skill
+def extract_experience_years(text: str, skill_name: str) -> Optional[float]:
+    """
+    Extract years of experience mentioned near a skill name in the text.
+    
+    Looks for patterns like:
+    - "X years/years of experience in [skill]"
+    - "[skill] for X years"
+    - "X year experience with [skill]"
+    - "coding in [skill] for X years"
+    - "X years of [skill]"
+    
+    Args:
+        text: The text to search in
+        skill_name: The skill name to look for
+        
+    Returns:
+        Number of years found, or None if not found
+    """
+    text_lower = text.lower()
+    skill_lower = skill_name.lower()
+    
+    # Pattern to match numbers (including decimals and ranges)
+    number_pattern = r'(\d+(?:\.\d+)?)'
+    
+    # Create a pattern that matches the skill name with word boundaries
+    # Escape special regex characters in skill name
+    skill_pattern = re.escape(skill_lower)
+    
+    # Try different patterns around the skill name
+    patterns = [
+        # "X years/years of experience in [skill]"
+        rf'{number_pattern}\s+years?\s+(?:of\s+)?experience\s+(?:in|with|using)\s+{skill_pattern}',
+        # "[skill] for X years"
+        rf'{skill_pattern}\s+(?:for|over)\s+{number_pattern}\s+years?',
+        # "X year experience with [skill]"
+        rf'{number_pattern}\s+year\s+experience\s+(?:in|with|using)\s+{skill_pattern}',
+        # "coding in [skill] for X years"
+        rf'(?:coding|working|using|developing)\s+(?:in|with|on)\s+{skill_pattern}\s+(?:for|over)\s+{number_pattern}\s+years?',
+        # "X years of [skill]"
+        rf'{number_pattern}\s+years?\s+of\s+{skill_pattern}',
+        # "[skill] (X years)"
+        rf'{skill_pattern}\s*\([^)]*{number_pattern}\s+years?[^)]*\)',
+        # "X+ years [skill]" or "[skill] X+ years"
+        rf'{number_pattern}\+?\s+years?\s+{skill_pattern}',
+        rf'{skill_pattern}\s+{number_pattern}\+?\s+years?',
+    ]
+    
+    # Also try without word boundaries for partial matches
+    for pattern in patterns:
+        matches = re.finditer(pattern, text_lower, re.IGNORECASE)
+        for match in matches:
+            try:
+                years_str = match.group(1)
+                years = float(years_str)
+                # If it's a range like "3-5", take the average
+                if '-' in match.group(0):
+                    # Try to find both numbers in the match
+                    range_match = re.search(rf'{number_pattern}\s*-\s*{number_pattern}', match.group(0))
+                    if range_match:
+                        years = (float(range_match.group(1)) + float(range_match.group(2))) / 2
+                return years
+            except (ValueError, IndexError):
+                continue
+    
+    return None
+
+# Helper function to map years of experience to skill level
+def map_years_to_level(years: float) -> str:
+    """
+    Map years of experience to skill level.
+    
+    Args:
+        years: Number of years of experience
+        
+    Returns:
+        Skill level: "Beginner", "Intermediate", "Advanced", or "Expert"
+    """
+    if years <= 1:
+        return "Beginner"
+    elif years <= 4:
+        return "Intermediate"
+    elif years <= 9:
+        return "Advanced"
+    else:
+        return "Expert"
+
+# Helper function to check if a skill is mentioned in the text
+def skill_mentioned_in_text(text: str, skill_name: str) -> bool:
+    """
+    Check if a skill name (or common variations) appears in the text as a complete word.
+    Uses space-based detection: the skill must be surrounded by spaces/punctuation.
+    
+    Args:
+        text: The text to search in
+        skill_name: The skill name to look for
+        
+    Returns:
+        True if skill is mentioned as a complete word, False otherwise
+    """
+    text_lower = text.lower()
+    skill_lower = skill_name.lower().strip()
+    
+    # WHITELIST VALIDATION: Only allow skills from SKILL_CATEGORIES
+    if skill_lower not in VALID_SKILLS_SET:
+        return False
+    
+    # CONFLICT DETECTION: Check if a longer skill containing this skill is present in text
+    for longer_skill, conflicts in SKILL_CONFLICT_MAP.items():
+        if skill_name in conflicts:
+            # Check if the longer skill appears in the text
+            longer_skill_lower = longer_skill.lower()
+            # Use word boundaries to check if longer skill appears as complete word
+            pattern = r'\b' + re.escape(longer_skill_lower) + r'\b'
+            if re.search(pattern, text_lower, re.IGNORECASE):
+                # Longer skill is present, so don't match the shorter one
+                return False
+    
+    # Special handling for single-letter skills to avoid false positives
+    # For example, "R" should not match "React" or "Ruby" or "JavaScript"
+    if len(skill_lower) == 1:
+        # Only match if it's a standalone word or followed by punctuation
+        # Use word boundaries and check it's not part of a longer word
+        pattern = r'\b' + re.escape(skill_lower) + r'(?:\s|$|[^a-z])'
+        if re.search(pattern, text_lower, re.IGNORECASE):
+            # Double-check: make sure it's not part of a known skill name
+            # Common single-letter skills that might conflict
+            conflicting_skills = {
+                'r': ['react', 'ruby', 'rust', 'rails', 'javascript'],  # Added 'javascript'
+                'c': ['c++', 'c#', 'css'],
+                's': ['swift', 'scala', 'sql'],
+            }
+            if skill_lower in conflicting_skills:
+                # Check if any conflicting skill appears in text
+                for conflict in conflicting_skills[skill_lower]:
+                    # Use word boundaries to check if conflict appears as complete word
+                    conflict_pattern = r'\b' + re.escape(conflict) + r'\b'
+                    if re.search(conflict_pattern, text_lower, re.IGNORECASE):
+                        # If conflicting skill is mentioned, don't match single letter
+                        return False
+            return True
+        return False
+    
+    # Common skill name variations mapping
+    skill_variations = {
+        "javascript": ["js", "javascript", "ecmascript"],
+        "typescript": ["ts", "typescript"],
+        "python": ["python", "py", "python3"],
+        "node.js": ["node", "nodejs", "node.js"],
+        "react": ["react", "reactjs", "react.js"],
+        "vue.js": ["vue", "vuejs", "vue.js"],
+        "c++": ["c++", "cpp", "c plus plus"],
+        "c#": ["c#", "csharp", "c sharp"],
+        "postgresql": ["postgresql", "postgres", "pg"],
+        "mongodb": ["mongodb", "mongo"],
+        "aws": ["aws", "amazon web services", "amazon cloud"],
+    }
+    
+    # Check if skill has known variations
+    for canonical, variations in skill_variations.items():
+        if skill_lower == canonical or skill_lower in variations:
+            # Check if any variation appears in text with word boundaries
+            for variation in variations:
+                pattern = r'\b' + re.escape(variation) + r'\b'
+                if re.search(pattern, text_lower, re.IGNORECASE):
+                    return True
+    
+    # Use word boundaries to match skill name as a whole word
+    # This prevents "Java" from matching in "JavaScript" or "R" from matching in "React"
+    pattern = r'\b' + re.escape(skill_lower) + r'\b'
+    if re.search(pattern, text_lower, re.IGNORECASE):
+        return True
+    
+    # For multi-word skills, check if they appear as complete phrases
+    # Split by spaces and check if all words appear together
+    if ' ' in skill_lower:
+        # Escape each word and join with whitespace pattern
+        words = skill_lower.split()
+        # Create pattern that matches all words in sequence with spaces between
+        pattern = r'\b' + r'\s+'.join(re.escape(word) for word in words) + r'\b'
+        if re.search(pattern, text_lower, re.IGNORECASE):
+            return True
+    
+    # NO FALLBACK to substring matching - this prevents false positives
+    # For example, "Java" should NOT match inside "JavaScript"
+    return False
+
+# Helper function to categorize a skill into buckets
+def categorize_skill(skill_name: str) -> str:
+    """Categorize a skill into one of the predefined buckets."""
+    skill_lower = skill_name.lower().strip()
+    
+    for category, skills in SKILL_CATEGORIES.items():
+        for skill in skills:
+            if skill_lower == skill.lower() or skill_lower in skill.lower() or skill.lower() in skill_lower:
+                return category
+    
+    # Default categorization based on keywords
+    if any(keyword in skill_lower for keyword in ["language", "programming", "code", "script"]):
+        return "Programming Languages"
+    elif any(keyword in skill_lower for keyword in ["framework", "library", "react", "vue", "angular"]):
+        return "Web Frameworks"
+    elif any(keyword in skill_lower for keyword in ["tool", "docker", "kubernetes", "aws", "cloud", "database"]):
+        return "Tools & Technologies"
+    else:
+        return "Soft Skills"
+
+# Process text with Gemini API
+async def process_text_with_gemini(text: str) -> List[CategorizedSkill]:
+    """Use Gemini API to extract and categorize skills from text."""
+    gemini_api_key = os.getenv("GEMINI_API_KEY")
+    if not gemini_api_key:
+        # Fallback to manual extraction
+        return extract_skills_fallback(text)
+    
+    try:
+        model = genai.GenerativeModel('gemini-pro')
+        
+        # Build whitelist of all valid skills for the prompt
+        all_valid_skills_list = []
+        for category, skills in SKILL_CATEGORIES.items():
+            all_valid_skills_list.extend(skills)
+        skills_whitelist = ", ".join(sorted(set(all_valid_skills_list)))
+        
+        # Create stricter prompt for Gemini
+        prompt = f"""You are a precise skill extraction system. Extract ONLY skills that are EXPLICITLY and COMPLETELY mentioned as standalone words in the text.
+
+CRITICAL EXTRACTION RULES - SPACE-BASED DETECTION:
+
+0. WHITELIST VALIDATION (FIRST CHECK):
+   - ONLY extract skills from this whitelist: {skills_whitelist}
+   - If a word in the text is NOT in this whitelist, do NOT extract it
+   - If a skill name appears inside another skill name without spaces, extract ONLY the longer skill name from the whitelist
+   - Example: If text contains "JavaScript" and "JavaScript" is in the whitelist, extract ONLY "JavaScript"
+   - Example: Do NOT extract "Java" or "R" if they appear inside "JavaScript" - extract ONLY "JavaScript"
+
+1. SPACE-BOUNDARY DETECTION (MOST IMPORTANT):
+   - A skill MUST be surrounded by spaces (or punctuation/line breaks) on BOTH sides
+   - A skill must appear as a COMPLETE, STANDALONE word separated by spaces
+   - If a skill appears INSIDE another word (no spaces around it), it is NOT a valid skill
+   - Example: Text "JavaScript" → Extract "JavaScript" ONLY (it's surrounded by spaces and in whitelist)
+   - Example: Text "JavaScript" → Do NOT extract "Java" (no space before "Java", it's part of "JavaScript", and "Java" would conflict)
+   - Example: Text "JavaScript" → Do NOT extract "Script" (no space before "Script", it's part of "JavaScript")
+   - Example: Text "JavaScript" → Do NOT extract "R" (no space before "R", it's part of "JavaScript")
+   - Example: Text "I know Java and JavaScript" → Extract BOTH "Java" (has spaces, in whitelist) AND "JavaScript" (has spaces, in whitelist)
+   - Example: Text "I use React" → Extract "React" ONLY (surrounded by spaces, in whitelist)
+   - Example: Text "React" → Do NOT extract "R" (no space before "R", it's part of "React")
+
+2. WORD BOUNDARY REQUIREMENT:
+   - Skills must be separated by spaces, punctuation, or line breaks on BOTH sides
+   - "JavaScript" is ONE skill, not "Java" + "Script" (because there's no space between them)
+   - "Node.js" is ONE skill (with a dot), not "Node" + "js" (because there's no space between them)
+   - Match the EXACT form as written in the text
+   - A skill like "Java" must have a space (or punctuation) BEFORE it AND AFTER it to be detected
+   - If "Java" appears inside "JavaScript" without spaces, it is NOT "Java" skill - extract ONLY "JavaScript"
+
+3. DETECTION METHOD:
+   - Split the text by spaces to get individual words
+   - Only match skills that appear as complete words in this space-separated list
+   - Do NOT search for substrings within words
+   - Check each word against the whitelist
+   - Example: Text split by spaces: ["I", "know", "JavaScript"] → "JavaScript" is a complete word AND in whitelist → Extract it
+   - Example: Text split by spaces: ["I", "know", "JavaScript"] → "Java" is NOT a complete word → Do NOT extract it
+
+4. SUBSTRING EXCLUSION RULE:
+   - If a skill name appears inside another skill name without spaces, extract ONLY the longer skill name
+   - Example: "JavaScript" contains "Java" and "R" - if "JavaScript" appears, extract ONLY "JavaScript"
+   - Example: "TypeScript" contains "Script" - if "TypeScript" appears, extract ONLY "TypeScript"
+   - Example: "React" contains "R" and "Act" - if "React" appears, extract ONLY "React"
+   - This rule applies even if both skills are in the whitelist
+
+5. NO INFERENCE OR ASSUMPTION:
+   - Do NOT extract skills based on context clues
+   - Do NOT extract skills that "seem related" but aren't mentioned
+   - Do NOT extract skills from acronyms unless the full skill name appears in the whitelist
+   - If someone says "I code in JS", only extract if "JavaScript" or "JS" appears as a complete word AND is in whitelist
+
+6. EXPERIENCE LEVEL DETERMINATION:
+   - Extract years of experience mentioned near each skill
+   - Beginner: 0-1 years
+   - Intermediate: 2-4 years  
+   - Advanced: 5-9 years
+   - Expert: 10+ years
+   - If no years mentioned, use "Intermediate"
+
+7. VALIDATION CHECK:
+   - Before including a skill, verify it appears as a complete word separated by spaces
+   - Check that it's not part of a longer word (no spaces around it)
+   - Verify it's in the whitelist
+   - Verify it's not a substring of another skill that appears in the text
+   - Use this test: "Does this skill have spaces (or punctuation) before AND after it AND is it in the whitelist?"
+
+EXAMPLES OF CORRECT EXTRACTION (SPACE-BASED):
+
+Text: "I have 5 years of JavaScript experience and 2 years with React"
+Split by spaces: ["I", "have", "5", "years", "of", "JavaScript", "experience", "and", "2", "years", "with", "React"]
+Extract: [{{"skill": "JavaScript", "level": "Advanced"}}, {{"skill": "React", "level": "Intermediate"}}]
+Do NOT extract: "Java" (it's not a separate word, it's part of "JavaScript" which has no space before "Java")
+Do NOT extract: "R" (it's not a separate word, it's part of "JavaScript" and "React")
+
+Text: "I work with Python, Java, and TypeScript"
+Split by spaces: ["I", "work", "with", "Python,", "Java,", "and", "TypeScript"]
+Extract: [{{"skill": "Python", "level": "Intermediate"}}, {{"skill": "Java", "level": "Intermediate"}}, {{"skill": "TypeScript", "level": "Intermediate"}}]
+Note: "Java" is extracted because it appears as a separate word (with comma and space around it) AND is in whitelist
+
+Text: "13 years coding in Python"
+Split by spaces: ["13", "years", "coding", "in", "Python"]
+Extract: [{{"skill": "Python", "level": "Expert"}}]
+Do NOT extract: "Py" or "thon" (they're not separate words, not in whitelist)
+
+Text: "I use React and Node.js for web development"
+Split by spaces: ["I", "use", "React", "and", "Node.js", "for", "web", "development"]
+Extract: [{{"skill": "React", "level": "Intermediate"}}, {{"skill": "Node.js", "level": "Intermediate"}}]
+Do NOT extract: "Node" separately from "Node.js" (no space between them)
+
+EXAMPLES OF INCORRECT EXTRACTION (DO NOT DO THIS):
+
+Text: "I have experience with JavaScript"
+Split by spaces: ["I", "have", "experience", "with", "JavaScript"]
+WRONG: [{{"skill": "Java", "level": "Intermediate"}}, {{"skill": "JavaScript", "level": "Intermediate"}}, {{"skill": "R", "level": "Intermediate"}}]
+CORRECT: [{{"skill": "JavaScript", "level": "Intermediate"}}]
+Reason: "Java" and "R" are NOT separate words - they're part of "JavaScript" which has no spaces before them
+
+Text: "I work with TypeScript and React"
+Split by spaces: ["I", "work", "with", "TypeScript", "and", "React"]
+WRONG: [{{"skill": "Type", "level": "Intermediate"}}, {{"skill": "Script", "level": "Intermediate"}}, {{"skill": "TypeScript", "level": "Intermediate"}}, {{"skill": "R", "level": "Intermediate"}}, {{"skill": "React", "level": "Intermediate"}}]
+CORRECT: [{{"skill": "TypeScript", "level": "Intermediate"}}, {{"skill": "React", "level": "Intermediate"}}]
+Reason: "Type", "Script", and "R" are NOT separate words - they're part of longer skill names
+
+Text: "I know JavaScript and Java"
+Split by spaces: ["I", "know", "JavaScript", "and", "Java"]
+CORRECT: [{{"skill": "JavaScript", "level": "Intermediate"}}, {{"skill": "Java", "level": "Intermediate"}}]
+Reason: Both are separate words with spaces around them AND both are in whitelist
+
+INPUT TEXT:
+{text}
+
+EXTRACTION PROCESS:
+1. Split the text by spaces to get individual words
+2. For each word, check if it matches a skill name from the whitelist EXACTLY
+3. Only extract skills that appear as complete words (surrounded by spaces/punctuation) AND are in the whitelist
+4. If a shorter skill appears inside a longer skill without spaces, extract ONLY the longer skill
+5. For each skill, find any years of experience mentioned nearby
+6. Map years to level (0-1=Beginner, 2-4=Intermediate, 5-9=Advanced, 10+=Expert)
+7. Categorize each skill (Programming Languages, Web Frameworks, Tools & Technologies, Soft Skills)
+8. Return ONLY skills that passed the space-boundary test AND are in the whitelist
+
+OUTPUT FORMAT (JSON array only, no markdown, no explanation):
+[
+  {{"skill": "JavaScript", "category": "Programming Languages", "level": "Expert"}},
+  {{"skill": "React", "category": "Web Frameworks", "level": "Intermediate"}}
+]
+
+REMEMBER: 
+- Extract ONLY complete words separated by spaces
+- Do NOT extract substrings that appear inside other words
+- A skill must have spaces (or punctuation) BEFORE and AFTER it
+- A skill must be in the whitelist: {skills_whitelist}
+- If "Java" appears inside "JavaScript" without spaces, it is NOT the "Java" skill - extract ONLY "JavaScript"
+- If "R" appears inside "JavaScript" or "React" without spaces, it is NOT the "R" skill - extract ONLY the longer skill
+- Split text by spaces first, then match complete words only from the whitelist"""
+        
+        response = model.generate_content(prompt)
+        
+        # Extract JSON from response
+        response_text = response.text.strip()
+        
+        # Remove markdown code blocks if present
+        if response_text.startswith("```"):
+            response_text = response_text.split("```")[1]
+            if response_text.startswith("json"):
+                response_text = response_text[4:]
+            response_text = response_text.strip()
+        if response_text.endswith("```"):
+            response_text = response_text.rsplit("```")[0].strip()
+        
+        # Parse JSON
+        skills_data = json.loads(response_text)
+        
+        # Post-processing: validate skills and extract/override experience levels
+        categorized_skills = []
+        for item in skills_data:
+            skill_name = item.get("skill", "").strip()
+            if not skill_name:
+                continue
+            
+            # Validate that skill is actually mentioned in the text
+            if not skill_mentioned_in_text(text, skill_name):
+                # Skip skills that weren't actually mentioned
+                continue
+            
+            category = item.get("category", categorize_skill(skill_name))
+            level = item.get("level", "Intermediate")
+            
+            # Extract years of experience from text and override level if found
+            years = extract_experience_years(text, skill_name)
+            if years is not None:
+                # Override level based on extracted years
+                level = map_years_to_level(years)
+            else:
+                # If no years found, use Gemini's level but ensure it's valid
+                if level not in ["Beginner", "Intermediate", "Advanced", "Expert"]:
+                    level = "Intermediate"
+            
+            categorized_skills.append(CategorizedSkill(
+                skill=skill_name,
+                category=category,
+                level=level
+            ))
+        
+        # POST-PROCESSING FILTER: Remove skills that are substrings of other extracted skills
+        # Sort by length (longest first) to check longer skills first
+        filtered_skills = []
+        skill_names_lower = [s.skill.lower() for s in categorized_skills]
+        
+        for skill_obj in categorized_skills:
+            skill_lower = skill_obj.skill.lower()
+            is_substring = False
+            
+            # Check if this skill is a substring of any other extracted skill
+            for other_skill_lower in skill_names_lower:
+                if skill_lower == other_skill_lower:
+                    continue
+                
+                # Check if this skill appears as a substring in another skill
+                if skill_lower in other_skill_lower:
+                    # Verify it's actually embedded (not just a word boundary match)
+                    idx = other_skill_lower.find(skill_lower)
+                    if idx != -1:
+                        # Check if it's embedded (not at word boundaries)
+                        if idx == 0 and len(other_skill_lower) > len(skill_lower):
+                            # At start - check if next char is a letter
+                            next_char_idx = len(skill_lower)
+                            if next_char_idx < len(other_skill_lower) and other_skill_lower[next_char_idx].isalpha():
+                                is_substring = True
+                                break
+                        elif idx > 0:
+                            # In middle/end - check if preceded by a letter
+                            if other_skill_lower[idx - 1].isalpha():
+                                is_substring = True
+                                break
+            
+            # Only add if it's not a substring of another skill
+            if not is_substring:
+                filtered_skills.append(skill_obj)
+        
+        return filtered_skills
+    
+    except json.JSONDecodeError as e:
+        # Fallback: try to extract skills manually
+        print(f"JSON decode error: {e}")
+        return extract_skills_fallback(text)
+    except Exception as e:
+        print(f"Gemini API error: {e}")
+        # Fallback to manual extraction
+        return extract_skills_fallback(text)
+
+# Fallback function to extract skills without Gemini
+def extract_skills_fallback(text: str) -> List[CategorizedSkill]:
+    """Fallback method to extract skills when Gemini is unavailable."""
+    skills_found = []
+    text_lower = text.lower()
+    
+    # Check each skill in our categories
+    for category, skills in SKILL_CATEGORIES.items():
+        for skill in skills:
+            if skill.lower() in text_lower:
+                skills_found.append(CategorizedSkill(
+                    skill=skill,
+                    category=category,
+                    level="Intermediate"
+                ))
+    
+    return skills_found
+
+# Test endpoint for process-text route
+@app.get("/api/skills/process-text/test")
+async def test_process_text():
+    """Test endpoint to verify the route is accessible."""
+    return {"message": "Process text endpoint is accessible", "status": "ok"}
+
+# Process text endpoint (must come before /api/skills to avoid route conflicts)
+@app.post("/api/skills/process-text", response_model=ProcessTextResponse)
+async def process_text(request: ProcessTextRequest):
+    """Process free-form text to extract and categorize skills using Gemini API."""
+    try:
+        if not request.text or not request.text.strip():
+            raise HTTPException(status_code=400, detail="Text input is required")
+        
+        # Process text with Gemini
+        categorized_skills = await process_text_with_gemini(request.text)
+        
+        if not categorized_skills:
+            raise HTTPException(
+                status_code=404, 
+                detail="No skills could be extracted from the text. Please try being more specific."
+            )
+        
+        # Group skills by category
+        categories_dict: Dict[str, List[str]] = {}
+        for skill_obj in categorized_skills:
+            category = skill_obj.category
+            if category not in categories_dict:
+                categories_dict[category] = []
+            if skill_obj.skill not in categories_dict[category]:
+                categories_dict[category].append(skill_obj.skill)
+        
+        return ProcessTextResponse(
+            skills=categorized_skills,
+            categories=categories_dict
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error processing text: {str(e)}")
 
 # Save user skills
 @app.post("/api/skills")
@@ -406,18 +1057,47 @@ async def save_skills(skills_request: SkillsRequest):
         user_id = skills_request.user_id
         skills_data = [{"skill": skill.skill, "level": skill.level} for skill in skills_request.skills]
         
-        # Store skills for the user
-        skills_db[user_id] = {
-            "user_id": user_id,
+        # Group skills by category for easier querying
+        categories_dict: Dict[str, List[str]] = {}
+        for skill_obj in skills_request.skills:
+            category = categorize_skill(skill_obj.skill)
+            if category not in categories_dict:
+                categories_dict[category] = []
+            if skill_obj.skill not in categories_dict[category]:
+                categories_dict[category].append(skill_obj.skill)
+        
+        # Prepare data for Firestore
+        skills_doc = {
             "skills": skills_data,
+            "categories": categories_dict,
             "updated_at": datetime.now().isoformat()
         }
+        
+        # Try to save to Firestore first
+        if db:
+            try:
+                user_ref = db.collection("users").document(user_id)
+                user_ref.set(skills_doc, merge=True)
+            except Exception as e:
+                print(f"Firestore save error: {e}, falling back to in-memory storage")
+                # Fallback to in-memory storage
+                skills_db[user_id] = {
+                    "user_id": user_id,
+                    **skills_doc
+                }
+        else:
+            # Fallback to in-memory storage if Firestore not available
+            skills_db[user_id] = {
+                "user_id": user_id,
+                **skills_doc
+            }
         
         return {
             "message": "Skills saved successfully",
             "user_id": user_id,
             "skills_count": len(skills_data),
-            "skills": skills_data
+            "skills": skills_data,
+            "categories": categories_dict
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error saving skills: {str(e)}")
@@ -426,6 +1106,17 @@ async def save_skills(skills_request: SkillsRequest):
 @app.get("/api/skills/{user_id}")
 async def get_skills(user_id: str):
     try:
+        # Try to get from Firestore first
+        if db:
+            try:
+                user_ref = db.collection("users").document(user_id)
+                user_doc = user_ref.get()
+                if user_doc.exists:
+                    return user_doc.to_dict()
+            except Exception as e:
+                print(f"Firestore read error: {e}, falling back to in-memory storage")
+        
+        # Fallback to in-memory storage
         if user_id not in skills_db:
             raise HTTPException(status_code=404, detail="Skills not found for this user")
         

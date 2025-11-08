@@ -53,7 +53,19 @@ export default function TargetPositionsPage() {
       const userDoc = await getDoc(userDocRef);
       if (userDoc.exists()) {
         const data = userDoc.data();
-        setUserSkills(data.skills || []);
+        // Handle different data formats
+        if (data.skills) {
+          if (Array.isArray(data.skills)) {
+            // Check if it's an array of strings or objects
+            if (data.skills.length > 0 && typeof data.skills[0] === 'string') {
+              // Array of strings
+              setUserSkills(data.skills);
+            } else {
+              // Array of objects with skill property
+              setUserSkills(data.skills.map((s: any) => s.skill || s));
+            }
+          }
+        }
       }
     } catch (error) {
       console.error("Error fetching user skills:", error);
