@@ -2,7 +2,8 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { Upload, Mic, ArrowLeft, FileText } from "lucide-react";
+import { Upload, Mic, FileText } from "lucide-react";
+import Navbar from "@/components/Navbar";
 import TagInput, { SkillWithLevel } from "@/components/TagInput";
 import { SKILLS_LIST } from "@/lib/skills";
 import { useAuth } from "@/contexts/AuthContext";

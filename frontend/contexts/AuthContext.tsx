@@ -22,6 +22,7 @@ export interface UserDocument {
   hasCompletedSkillsSetup: boolean;
   skills: Array<{ skill: string; level: string }>;
   skillsUpdatedAt?: string;
+  company?: string; // Added company field
 }
 
 interface AuthContextType {
@@ -176,4 +177,3 @@ export function useAuth() {
   }
   return context;
 }
-

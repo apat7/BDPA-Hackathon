@@ -3,7 +3,8 @@
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Target, Filter, X, Building2, Briefcase, LogOut, Settings, User, PlusCircle, Star } from "lucide-react";
+import { Filter, X, Building2, Briefcase, PlusCircle, Star } from "lucide-react";
+import Navbar from "@/components/Navbar";
 import { useAuth } from "@/contexts/AuthContext";
 import { doc, getDoc, collection, getDocs } from "firebase/firestore";
 import { db, saveUserJob, fetchUserJobs, deleteUserJob, saveFocusedPosition, removeFocusedPosition, fetchFocusedPositions } from "@/lib/firebase";
@@ -369,60 +370,7 @@ export default function TargetPositionsPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950">
-      {/* Navigation Header */}
-      <nav className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border-b border-slate-200 dark:border-slate-700 sticky top-0 z-50">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <Link href="/" className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent hover:scale-105 transition-transform duration-300">
-              SkillBridge
-            </Link>
-            <div className="flex items-center gap-4">
-              <Link
-                href="/"
-                className="text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all duration-300 hover:scale-105"
-              >
-                Home
-              </Link>
-              <Link
-                href="/dashboard"
-                className="text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all duration-300 hover:scale-105"
-              >
-                Dashboard
-              </Link>
-              <Link
-                href="/target-positions"
-                className="text-blue-600 dark:text-blue-400 font-semibold hover:text-blue-700 dark:hover:text-blue-300 transition-all duration-300 hover:scale-105"
-              >
-                Target Positions
-              </Link>
-              <Link
-                href="/skills-setup"
-                className="text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all duration-300 hover:scale-105"
-              >
-                Skills Setup
-              </Link>
-              <Link
-                href="/seed-positions"
-                className="text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all duration-300 hover:scale-105"
-              >
-                Seed Positions
-              </Link>
-              <button className="p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all duration-300 hover:scale-105">
-                <Settings className="w-5 h-5" />
-              </button>
-              <button className="p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all duration-300 hover:scale-105">
-                <User className="w-5 h-5" />
-              </button>
-              <button
-                onClick={handleSignOut}
-                className="p-2 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all duration-300 hover:scale-105"
-              >
-                <LogOut className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <Navbar />
 
       {/* Main Content */}
       <div className="container mx-auto px-6 py-8">
