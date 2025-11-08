@@ -1,14 +1,26 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { X } from "lucide-react";
+import { X, ChevronDown } from "lucide-react";
+
+export interface SkillWithLevel {
+  skill: string;
+  level: string;
+}
 
 interface TagInputProps {
   skills: string[];
-  selectedSkills: string[];
-  onSkillsChange: (skills: string[]) => void;
+  selectedSkills: SkillWithLevel[];
+  onSkillsChange: (skills: SkillWithLevel[]) => void;
   placeholder?: string;
 }
+
+const EXPERIENCE_LEVELS = [
+  "Beginner",
+  "Intermediate",
+  "Advanced",
+  "Expert",
+];
 
 export default function TagInput({
   skills,
@@ -31,11 +43,12 @@ export default function TagInput({
       return;
     }
 
+    const selectedSkillNames = selectedSkills.map((s) => s.skill);
     const filtered = skills
       .filter(
         (skill) =>
           skill.toLowerCase().includes(inputValue.toLowerCase()) &&
-          !selectedSkills.includes(skill)
+          !selectedSkillNames.includes(skill)
       )
       .slice(0, 10); // Limit to 10 suggestions
 
@@ -72,8 +85,9 @@ export default function TagInput({
   };
 
   const handleSelectSkill = (skill: string) => {
-    if (!selectedSkills.includes(skill)) {
-      onSkillsChange([...selectedSkills, skill]);
+    const selectedSkillNames = selectedSkills.map((s) => s.skill);
+    if (!selectedSkillNames.includes(skill)) {
+      onSkillsChange([...selectedSkills, { skill, level: "Intermediate" }]);
     }
     setInputValue("");
     setShowSuggestions(false);
@@ -81,17 +95,24 @@ export default function TagInput({
   };
 
   const handleRemoveSkill = (skillToRemove: string) => {
-    onSkillsChange(selectedSkills.filter((skill) => skill !== skillToRemove));
+    onSkillsChange(selectedSkills.filter((s) => s.skill !== skillToRemove));
+  };
+
+  const handleLevelChange = (skill: string, level: string) => {
+    onSkillsChange(
+      selectedSkills.map((s) => (s.skill === skill ? { ...s, level } : s))
+    );
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (!showSuggestions || suggestions.length === 0) {
       if (e.key === "Enter" && inputValue.trim() !== "") {
         // Try to add the input as a new skill if it matches
+        const selectedSkillNames = selectedSkills.map((s) => s.skill);
         const exactMatch = skills.find(
           (skill) => skill.toLowerCase() === inputValue.trim().toLowerCase()
         );
-        if (exactMatch && !selectedSkills.includes(exactMatch)) {
+        if (exactMatch && !selectedSkillNames.includes(exactMatch)) {
           handleSelectSkill(exactMatch);
         }
       }
@@ -128,22 +149,14 @@ export default function TagInput({
     <div className="relative">
       {/* Selected Skills Chips */}
       {selectedSkills.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-3">
-          {selectedSkills.map((skill) => (
-            <div
-              key={skill}
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gradient-to-r from-blue-500 to-indigo-600 text-white text-sm font-medium animate-fade-in-up hover:scale-105 transition-all duration-300"
-            >
-              <span>{skill}</span>
-              <button
-                type="button"
-                onClick={() => handleRemoveSkill(skill)}
-                className="hover:bg-white/20 rounded-full p-0.5 transition-colors"
-                aria-label={`Remove ${skill}`}
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
+        <div className="flex flex-wrap gap-2 mb-3 overflow-visible">
+          {selectedSkills.map((skillWithLevel) => (
+            <SkillChip
+              key={skillWithLevel.skill}
+              skillWithLevel={skillWithLevel}
+              onLevelChange={handleLevelChange}
+              onRemove={handleRemoveSkill}
+            />
           ))}
         </div>
       )}
@@ -190,6 +203,88 @@ export default function TagInput({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// Skill Chip Component
+function SkillChip({
+  skillWithLevel,
+  onLevelChange,
+  onRemove,
+}: {
+  skillWithLevel: SkillWithLevel;
+  onLevelChange: (skill: string, level: string) => void;
+  onRemove: (skill: string) => void;
+}) {
+  const [showLevelDropdown, setShowLevelDropdown] = useState(false);
+  const levelDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        levelDropdownRef.current &&
+        !levelDropdownRef.current.contains(event.target as Node)
+      ) {
+        setShowLevelDropdown(false);
+      }
+    };
+
+    if (showLevelDropdown) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [showLevelDropdown]);
+
+  return (
+    <div className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-gradient-to-r from-blue-500 to-indigo-600 text-white text-sm font-medium animate-fade-in-up transition-all duration-300 relative ${!showLevelDropdown ? 'hover:scale-105' : ''}`}>
+      <span>{skillWithLevel.skill}</span>
+      <div className="relative z-10" ref={levelDropdownRef}>
+        <button
+          type="button"
+          onClick={() => setShowLevelDropdown(!showLevelDropdown)}
+          className="ml-1 px-2 py-0.5 rounded bg-white/20 hover:bg-white/30 transition-colors text-xs flex items-center gap-1"
+        >
+          <span>{skillWithLevel.level}</span>
+          <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${showLevelDropdown ? 'rotate-180' : ''}`} />
+        </button>
+        {showLevelDropdown && (
+          <div className="absolute z-[100] mt-1 right-0 top-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-2xl min-w-[120px] overflow-hidden">
+            {EXPERIENCE_LEVELS.map((level) => (
+              <button
+                key={level}
+                type="button"
+                onClick={() => {
+                  onLevelChange(skillWithLevel.skill, level);
+                  setShowLevelDropdown(false);
+                }}
+                onMouseDown={(e) => e.preventDefault()}
+                className={`w-full text-left px-3 py-2 text-sm transition-colors duration-150 whitespace-nowrap ${
+                  skillWithLevel.level === level
+                    ? "bg-blue-50 dark:bg-blue-900/20 font-semibold text-slate-900 dark:text-white"
+                    : "text-slate-900 dark:text-white hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                } ${
+                  level === EXPERIENCE_LEVELS[0] ? "rounded-t-lg" : ""
+                } ${
+                  level === EXPERIENCE_LEVELS[EXPERIENCE_LEVELS.length - 1]
+                    ? "rounded-b-lg"
+                    : ""
+                }`}
+              >
+                {level}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={() => onRemove(skillWithLevel.skill)}
+        className="hover:bg-white/20 rounded-full p-0.5 transition-colors"
+        aria-label={`Remove ${skillWithLevel.skill}`}
+      >
+        <X className="w-3.5 h-3.5" />
+      </button>
     </div>
   );
 }

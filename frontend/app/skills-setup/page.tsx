@@ -3,19 +3,28 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { Type, Upload, Mic, ArrowLeft, FileText, Keyboard } from "lucide-react";
-import TagInput from "@/components/TagInput";
+import TagInput, { SkillWithLevel } from "@/components/TagInput";
 import { SKILLS_LIST } from "@/lib/skills";
+import { useAuth } from "@/contexts/AuthContext";
+import { useRouter } from "next/navigation";
 
 type InputMethod = "typing" | "resume" | "voice";
 
 export default function SkillsSetupPage() {
+  const { user } = useAuth();
+  const router = useRouter();
   const [selectedMethod, setSelectedMethod] = useState<InputMethod | null>(null);
   const [isRecording, setIsRecording] = useState(false);
-  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
+  const [selectedSkills, setSelectedSkills] = useState<SkillWithLevel[]>([]);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Skills saving states
+  const [isSavingSkills, setIsSavingSkills] = useState(false);
+  const [skillsSaveSuccess, setSkillsSaveSuccess] = useState(false);
+  const [skillsSaveError, setSkillsSaveError] = useState<string | null>(null);
   
   // Resume upload states
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -231,6 +240,61 @@ export default function SkillsSetupPage() {
     }
   };
 
+  // Save skills to backend
+  const handleSaveSkills = async () => {
+    if (!user) {
+      setSkillsSaveError("You must be logged in to save skills.");
+      return;
+    }
+
+    if (selectedSkills.length === 0) {
+      setSkillsSaveError("Please add at least one skill before saving.");
+      return;
+    }
+
+    setIsSavingSkills(true);
+    setSkillsSaveError(null);
+    setSkillsSaveSuccess(false);
+
+    try {
+      const response = await fetch("http://localhost:8000/api/skills", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          user_id: user.uid,
+          skills: selectedSkills,
+        }),
+      });
+
+      if (!response.ok) {
+        let errorMessage = "Failed to save skills";
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.detail || errorData.message || errorMessage;
+        } catch {
+          errorMessage = response.statusText || errorMessage;
+        }
+        throw new Error(errorMessage);
+      }
+
+      const result = await response.json();
+      setSkillsSaveSuccess(true);
+      
+      // Redirect to dashboard after successful save
+      setTimeout(() => {
+        router.push("/dashboard");
+      }, 1500);
+    } catch (err) {
+      console.error("Error saving skills:", err);
+      const errorMessage = err instanceof Error ? err.message : "Failed to save skills. Please try again.";
+      setSkillsSaveError(errorMessage);
+    } finally {
+      setIsSavingSkills(false);
+    }
+  };
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -380,6 +444,26 @@ export default function SkillsSetupPage() {
                     onSkillsChange={setSelectedSkills}
                     placeholder="Type to search skills..."
                   />
+                  {selectedSkills.length > 0 && (
+                    <div className="pt-4">
+                      <button
+                        type="button"
+                        onClick={handleSaveSkills}
+                        disabled={isSavingSkills}
+                        className="w-full px-6 py-3 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 transform disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isSavingSkills ? "Saving Skills..." : "Save Skills"}
+                      </button>
+                      {skillsSaveError && (
+                        <p className="text-sm text-red-500 mt-2 text-center">{skillsSaveError}</p>
+                      )}
+                      {skillsSaveSuccess && (
+                        <p className="text-sm text-green-500 mt-2 text-center">
+                          Skills saved successfully! Redirecting...
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 

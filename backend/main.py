@@ -34,9 +34,18 @@ class ItemCreate(BaseModel):
     description: Optional[str] = None
     price: float
 
+class SkillWithLevel(BaseModel):
+    skill: str
+    level: str
+
+class SkillsRequest(BaseModel):
+    user_id: str
+    skills: List[SkillWithLevel]
+
 # In-memory storage (replace with database in production)
 items_db = []
 next_id = 1
+skills_db = {}  # Dictionary to store skills by user_id
 
 # Create directories if they don't exist
 RECORDINGS_DIR = "recordings"
@@ -192,6 +201,42 @@ async def upload_resume(resume: UploadFile = File(...)):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error saving resume: {str(e)}")
+
+# Save user skills
+@app.post("/api/skills")
+async def save_skills(skills_request: SkillsRequest):
+    try:
+        user_id = skills_request.user_id
+        skills_data = [{"skill": skill.skill, "level": skill.level} for skill in skills_request.skills]
+        
+        # Store skills for the user
+        skills_db[user_id] = {
+            "user_id": user_id,
+            "skills": skills_data,
+            "updated_at": datetime.now().isoformat()
+        }
+        
+        return {
+            "message": "Skills saved successfully",
+            "user_id": user_id,
+            "skills_count": len(skills_data),
+            "skills": skills_data
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error saving skills: {str(e)}")
+
+# Get user skills
+@app.get("/api/skills/{user_id}")
+async def get_skills(user_id: str):
+    try:
+        if user_id not in skills_db:
+            raise HTTPException(status_code=404, detail="Skills not found for this user")
+        
+        return skills_db[user_id]
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving skills: {str(e)}")
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
