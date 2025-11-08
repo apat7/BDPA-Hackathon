@@ -194,21 +194,6 @@ export default function Dashboard() {
     return gaps;
   }, [positions, customJobs, userSkills, user, focusedPositionIds]);
 
-  const topSkills = useMemo(() => {
-    return skillGaps.slice(0, 4);
-  }, [skillGaps]);
-
-  const getProgressColor = (priority: "High" | "Medium" | "Low") => {
-    switch (priority) {
-      case "High":
-        return "from-orange-500 to-orange-600";
-      case "Medium":
-        return "from-yellow-500 to-yellow-600";
-      case "Low":
-        return "from-blue-500 to-blue-600";
-    }
-  };
-
   const calculateCompletionPercentage = (
     requiredSkills: string[],
     userSkills: string[]
@@ -259,6 +244,40 @@ export default function Dashboard() {
     });
     return Array.from(skillsSet);
   }, [focusedPositionsWithProgress]);
+
+  const totalFocusedPositions = focusedPositionIds.size;
+
+  const averageSkillMatchRate = useMemo(() => {
+    if (focusedPositionsWithProgress.length === 0) return 0;
+    const totalPercentage = focusedPositionsWithProgress.reduce(
+      (sum, pos) => sum + pos.completionPercentage,
+      0
+    );
+    return Math.round(totalPercentage / focusedPositionsWithProgress.length);
+  }, [focusedPositionsWithProgress]);
+
+  const totalMissingSkills = useMemo(() => {
+    return aggregatedMissingSkills.length;
+  }, [aggregatedMissingSkills]);
+
+  const totalLearningPaths = useMemo(() => {
+    return courseraRecommendations.length;
+  }, [courseraRecommendations]);
+
+  const topSkills = useMemo(() => {
+    return skillGaps.slice(0, 4);
+  }, [skillGaps]);
+
+  const getProgressColor = (priority: "High" | "Medium" | "Low") => {
+    switch (priority) {
+      case "High":
+        return "from-orange-500 to-orange-600";
+      case "Medium":
+        return "from-yellow-500 to-yellow-600";
+      case "Low":
+        return "from-blue-500 to-blue-600";
+    }
+  };
 
   useEffect(() => {
     if (aggregatedMissingSkills.length > 0) {
@@ -336,10 +355,14 @@ export default function Dashboard() {
               <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
                 <BarChart className="w-6 h-6 text-white" />
               </div>
-              <span className="text-sm text-green-600 dark:text-green-400 font-semibold">+12%</span>
+              <span className="text-sm text-green-600 dark:text-green-400 font-semibold">
+                {averageSkillMatchRate > 0 ? `+${averageSkillMatchRate}%` : "0%"}
+              </span>
             </div>
-            <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-1">65%</h3>
-            <p className="text-sm text-slate-600 dark:text-slate-400">Skill Match Rate</p>
+            <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-1">
+              {averageSkillMatchRate}%
+            </h3>
+            <p className="text-sm text-slate-600 dark:text-slate-400">Avg. Skill Match Rate</p>
           </div>
 
           <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl rounded-2xl p-6 border border-slate-200 dark:border-slate-700 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 animate-fade-in-up animate-delay-200">
@@ -347,10 +370,14 @@ export default function Dashboard() {
               <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center">
                 <Target className="w-6 h-6 text-white" />
               </div>
-              <span className="text-sm text-orange-600 dark:text-orange-400 font-semibold">5</span>
+              <span className="text-sm text-orange-600 dark:text-orange-400 font-semibold">
+                {totalMissingSkills}
+              </span>
             </div>
-            <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-1">12</h3>
-            <p className="text-sm text-slate-600 dark:text-slate-400">Skills Identified</p>
+            <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-1">
+              {totalMissingSkills}
+            </h3>
+            <p className="text-sm text-slate-600 dark:text-slate-400">Skills to Learn</p>
           </div>
 
           <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl rounded-2xl p-6 border border-slate-200 dark:border-slate-700 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 animate-fade-in-up animate-delay-300">
@@ -358,9 +385,13 @@ export default function Dashboard() {
               <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center">
                 <BookOpen className="w-6 h-6 text-white" />
               </div>
-              <span className="text-sm text-blue-600 dark:text-blue-400 font-semibold">3 new</span>
+              <span className="text-sm text-blue-600 dark:text-blue-400 font-semibold">
+                {totalLearningPaths}
+              </span>
             </div>
-            <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-1">8</h3>
+            <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-1">
+              {totalLearningPaths}
+            </h3>
             <p className="text-sm text-slate-600 dark:text-slate-400">Learning Paths</p>
           </div>
 
@@ -369,10 +400,14 @@ export default function Dashboard() {
               <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center">
                 <TrendingUp className="w-6 h-6 text-white" />
               </div>
-              <span className="text-sm text-green-600 dark:text-green-400 font-semibold">↑ 25%</span>
+              <span className="text-sm text-green-600 dark:text-green-400 font-semibold">
+                {totalFocusedPositions}
+              </span>
             </div>
-            <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-1">78%</h3>
-            <p className="text-sm text-slate-600 dark:text-slate-400">Market Readiness</p>
+            <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-1">
+              {totalFocusedPositions}
+            </h3>
+            <p className="text-sm text-slate-600 dark:text-slate-400">Focused Positions</p>
           </div>
         </div>
 
