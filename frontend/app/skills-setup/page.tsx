@@ -2,13 +2,13 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { Type, Upload, Mic, ArrowLeft, FileText, Keyboard } from "lucide-react";
+import { Upload, Mic, ArrowLeft, FileText } from "lucide-react";
 import TagInput, { SkillWithLevel } from "@/components/TagInput";
 import { SKILLS_LIST } from "@/lib/skills";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 
-type InputMethod = "typing" | "resume" | "voice";
+type InputMethod = "resume" | "voice";
 
 export default function SkillsSetupPage() {
   const { user } = useAuth();
@@ -26,12 +26,9 @@ export default function SkillsSetupPage() {
   const [skillsSaveSuccess, setSkillsSaveSuccess] = useState(false);
   const [skillsSaveError, setSkillsSaveError] = useState<string | null>(null);
   
-  // Text processing states
-  const [textInput, setTextInput] = useState("");
-  const [isProcessingText, setIsProcessingText] = useState(false);
+  // Auto-processing states
+  const [isProcessingSkills, setIsProcessingSkills] = useState(false);
   const [processingError, setProcessingError] = useState<string | null>(null);
-  const [processedSkills, setProcessedSkills] = useState<SkillWithLevel[]>([]);
-  const [showProcessedSkills, setShowProcessedSkills] = useState(false);
   
   // Resume upload states
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -138,6 +135,11 @@ export default function SkillsSetupPage() {
       setUploadSuccess(true);
       setRecordingDuration(0);
       
+      // Automatically process transcription with Gemini to extract skills
+      if (result.transcription && result.transcription.trim()) {
+        await processTextWithGemini(result.transcription);
+      }
+      
       // Reset success message after 3 seconds
       setTimeout(() => {
         setUploadSuccess(false);
@@ -234,6 +236,11 @@ export default function SkillsSetupPage() {
       setResumeUploadSuccess(true);
       setSelectedFile(null);
       
+      // Automatically process extracted text with Gemini to extract skills
+      if (result.text && result.text.trim()) {
+        await processTextWithGemini(result.text);
+      }
+      
       // Reset success message after 3 seconds
       setTimeout(() => {
         setResumeUploadSuccess(false);
@@ -247,21 +254,20 @@ export default function SkillsSetupPage() {
     }
   };
 
-  // Process text with Gemini API
-  const handleProcessText = async () => {
+  // Process text with Gemini API (helper function for auto-processing)
+  const processTextWithGemini = async (text: string) => {
     if (!user) {
       setProcessingError("You must be logged in to process skills.");
       return;
     }
 
-    if (!textInput.trim()) {
-      setProcessingError("Please enter some text describing your skills.");
+    if (!text.trim()) {
+      setProcessingError("No text content to process.");
       return;
     }
 
-    setIsProcessingText(true);
+    setIsProcessingSkills(true);
     setProcessingError(null);
-    setShowProcessedSkills(false);
 
     try {
       const response = await fetch("http://localhost:8000/api/skills/process-text", {
@@ -270,7 +276,7 @@ export default function SkillsSetupPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          text: textInput,
+          text: text,
           user_id: user.uid,
         }),
       });
@@ -294,15 +300,13 @@ export default function SkillsSetupPage() {
         level: s.level || "Intermediate",
       }));
       
-      setProcessedSkills(skillsWithLevels);
       setSelectedSkills(skillsWithLevels);
-      setShowProcessedSkills(true);
     } catch (err) {
       console.error("Error processing text:", err);
       const errorMessage = err instanceof Error ? err.message : "Failed to process text. Please try again.";
       setProcessingError(errorMessage);
     } finally {
-      setIsProcessingText(false);
+      setIsProcessingSkills(false);
     }
   };
 
@@ -398,39 +402,7 @@ export default function SkillsSetupPage() {
           </div>
 
           {/* Option Selector */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 animate-fade-in-up animate-delay-200">
-            {/* Typing Option */}
-            <button
-              onClick={() => setSelectedMethod("typing")}
-              className={`p-6 rounded-xl border-2 transition-all duration-300 hover:scale-105 transform flex items-center gap-4 ${
-                selectedMethod === "typing"
-                  ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-lg scale-105"
-                  : "border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 hover:border-blue-400"
-              }`}
-            >
-              <div className={`w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 ${
-                selectedMethod === "typing"
-                  ? "bg-gradient-to-br from-blue-500 to-blue-600"
-                  : "bg-slate-200 dark:bg-slate-600"
-              }`}>
-                <Keyboard className={`w-6 h-6 ${
-                  selectedMethod === "typing" ? "text-white" : "text-slate-600 dark:text-slate-300"
-                }`} />
-              </div>
-              <div className="text-left">
-                <h3 className={`text-lg font-semibold mb-1 ${
-                  selectedMethod === "typing"
-                    ? "text-blue-600 dark:text-blue-400"
-                    : "text-slate-900 dark:text-white"
-                }`}>
-                  Type It Out
-                </h3>
-                <p className="text-sm text-slate-600 dark:text-slate-400">
-                  Manually enter your skills
-                </p>
-              </div>
-            </button>
-
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8 animate-fade-in-up animate-delay-200">
             {/* Resume Option */}
             <button
               onClick={() => setSelectedMethod("resume")}
@@ -499,98 +471,6 @@ export default function SkillsSetupPage() {
           {/* Dynamic Content Area */}
           {selectedMethod && (
             <div className="animate-fade-in-up animate-delay-300">
-              {selectedMethod === "typing" && (
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                      Option 1: Type your skills as free-form text
-                    </label>
-                    <textarea
-                      value={textInput}
-                      onChange={(e) => {
-                        setTextInput(e.target.value);
-                        setProcessingError(null);
-                        setShowProcessedSkills(false);
-                      }}
-                      placeholder="Describe your skills... (e.g., 'I have 3 years of experience with JavaScript, React, and Node.js. I'm also proficient in Python and have worked with AWS and Docker. I'm a good communicator and have led several projects.')"
-                      className="w-full h-32 px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 hover:border-blue-400 focus:scale-[1.01] transform resize-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleProcessText}
-                      disabled={isProcessingText || !textInput.trim()}
-                      className="mt-2 w-full px-6 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold hover:from-purple-700 hover:to-pink-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 transform disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isProcessingText ? "Processing with AI..." : "Process with AI"}
-                    </button>
-                    {processingError && (
-                      <p className="text-sm text-red-500 mt-2">{processingError}</p>
-                    )}
-                    {showProcessedSkills && processedSkills.length > 0 && (
-                      <div className="mt-4 p-4 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
-                        <p className="text-sm font-semibold text-green-900 dark:text-green-300 mb-2">
-                          ✓ Found {processedSkills.length} skills:
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          {processedSkills.map((skill) => (
-                            <span
-                              key={skill.skill}
-                              className="px-2 py-1 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-xs font-medium"
-                            >
-                              {skill.skill} ({skill.level})
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="relative">
-                    <div className="absolute inset-0 flex items-center">
-                      <div className="w-full border-t border-slate-300 dark:border-slate-600"></div>
-                    </div>
-                    <div className="relative flex justify-center text-sm">
-                      <span className="px-2 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400">
-                        OR
-                      </span>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                      Option 2: Select skills from the list
-                    </label>
-                    <TagInput
-                      skills={SKILLS_LIST}
-                      selectedSkills={selectedSkills}
-                      onSkillsChange={setSelectedSkills}
-                      placeholder="Type to search skills..."
-                    />
-                  </div>
-
-                  {selectedSkills.length > 0 && (
-                    <div className="pt-4">
-                      <button
-                        type="button"
-                        onClick={handleSaveSkills}
-                        disabled={isSavingSkills}
-                        className="w-full px-6 py-3 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 transform disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {isSavingSkills ? "Saving Skills..." : "Save Skills"}
-                      </button>
-                      {skillsSaveError && (
-                        <p className="text-sm text-red-500 mt-2 text-center">{skillsSaveError}</p>
-                      )}
-                      {skillsSaveSuccess && (
-                        <p className="text-sm text-green-500 mt-2 text-center">
-                          Skills saved successfully! Redirecting...
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-
               {selectedMethod === "resume" && (
                 <div className="space-y-4">
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -680,6 +560,72 @@ export default function SkillsSetupPage() {
                       </div>
                     </div>
                   </div>
+
+                  {/* Processing Status */}
+                  {isProcessingSkills && (
+                    <div className="mt-4 p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                      <p className="text-sm font-semibold text-blue-900 dark:text-blue-300">
+                        Processing skills with AI...
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Processing Error */}
+                  {processingError && (
+                    <div className="mt-4 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                      <p className="text-sm text-red-600 dark:text-red-400">{processingError}</p>
+                    </div>
+                  )}
+
+                  {/* Extracted Skills Display */}
+                  {selectedSkills.length > 0 && (
+                    <div className="mt-4 space-y-4">
+                      <div className="p-4 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                        <p className="text-sm font-semibold text-green-900 dark:text-green-300 mb-2">
+                          ✓ Found {selectedSkills.length} skills:
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedSkills.map((skill) => (
+                            <span
+                              key={skill.skill}
+                              className="px-2 py-1 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-xs font-medium"
+                            >
+                              {skill.skill} ({skill.level})
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                          Edit your skills (add or remove)
+                        </label>
+                        <TagInput
+                          skills={SKILLS_LIST}
+                          selectedSkills={selectedSkills}
+                          onSkillsChange={setSelectedSkills}
+                          placeholder="Type to search skills..."
+                        />
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleSaveSkills}
+                        disabled={isSavingSkills}
+                        className="w-full px-6 py-3 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 transform disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isSavingSkills ? "Saving Skills..." : "Save Skills"}
+                      </button>
+                      {skillsSaveError && (
+                        <p className="text-sm text-red-500 mt-2 text-center">{skillsSaveError}</p>
+                      )}
+                      {skillsSaveSuccess && (
+                        <p className="text-sm text-green-500 mt-2 text-center">
+                          Skills saved successfully! Redirecting...
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -750,6 +696,72 @@ export default function SkillsSetupPage() {
                       </div>
                     </div>
                   </div>
+
+                  {/* Processing Status */}
+                  {isProcessingSkills && (
+                    <div className="mt-4 p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                      <p className="text-sm font-semibold text-blue-900 dark:text-blue-300">
+                        Processing skills with AI...
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Processing Error */}
+                  {processingError && (
+                    <div className="mt-4 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                      <p className="text-sm text-red-600 dark:text-red-400">{processingError}</p>
+                    </div>
+                  )}
+
+                  {/* Extracted Skills Display */}
+                  {selectedSkills.length > 0 && (
+                    <div className="mt-4 space-y-4">
+                      <div className="p-4 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                        <p className="text-sm font-semibold text-green-900 dark:text-green-300 mb-2">
+                          ✓ Found {selectedSkills.length} skills:
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedSkills.map((skill) => (
+                            <span
+                              key={skill.skill}
+                              className="px-2 py-1 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-xs font-medium"
+                            >
+                              {skill.skill} ({skill.level})
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                          Edit your skills (add or remove)
+                        </label>
+                        <TagInput
+                          skills={SKILLS_LIST}
+                          selectedSkills={selectedSkills}
+                          onSkillsChange={setSelectedSkills}
+                          placeholder="Type to search skills..."
+                        />
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleSaveSkills}
+                        disabled={isSavingSkills}
+                        className="w-full px-6 py-3 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 transform disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isSavingSkills ? "Saving Skills..." : "Save Skills"}
+                      </button>
+                      {skillsSaveError && (
+                        <p className="text-sm text-red-500 mt-2 text-center">{skillsSaveError}</p>
+                      )}
+                      {skillsSaveSuccess && (
+                        <p className="text-sm text-green-500 mt-2 text-center">
+                          Skills saved successfully! Redirecting...
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

@@ -63,6 +63,11 @@ class ProcessTextResponse(BaseModel):
     skills: List[CategorizedSkill]
     categories: Dict[str, List[str]]
 
+class SkillExtractionTestRequest(BaseModel):
+    text: str
+    expected_skills: Optional[List[str]] = None  # Optional list of expected skill names
+    user_id: str = "test_user"
+
 # In-memory storage (replace with database in production)
 items_db = []
 next_id = 1
@@ -104,8 +109,8 @@ except Exception as e:
 # Create directories if they don't exist
 # Use absolute paths based on the script location
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-RECORDINGS_DIR = os.path.join(BASE_DIR, "..", "recordings")
-RESUMES_DIR = os.path.join(BASE_DIR, "..", "resumes")
+RECORDINGS_DIR = os.path.join(BASE_DIR, "recordings")
+RESUMES_DIR = os.path.join(BASE_DIR, "resumes")
 # Normalize paths (resolve ..)
 RECORDINGS_DIR = os.path.normpath(RECORDINGS_DIR)
 RESUMES_DIR = os.path.normpath(RESUMES_DIR)
@@ -520,7 +525,8 @@ async def upload_resume(resume: UploadFile = File(...)):
                 "txt_filename": resume_txt_filename,
                 "txt_file_path": resume_txt_path,
                 "size": len(content),
-                "text_length": len(resume_text)
+                "text_length": len(resume_text),
+                "text": resume_text
             }
         except Exception as conversion_error:
             # If conversion fails, raise an error
@@ -757,143 +763,42 @@ async def process_text_with_gemini(text: str) -> List[CategorizedSkill]:
             all_valid_skills_list.extend(skills)
         skills_whitelist = ", ".join(sorted(set(all_valid_skills_list)))
         
-        # Create stricter prompt for Gemini
-        prompt = f"""You are a precise skill extraction system. Extract ONLY skills that are EXPLICITLY and COMPLETELY mentioned as standalone words in the text.
+        # Create simpler, more direct prompt for Gemini
+        prompt = f"""Extract only the explicitly mentioned technical skills from the following text. Do not infer or guess additional skills based on context, experience, or related technologies.
 
-CRITICAL EXTRACTION RULES - SPACE-BASED DETECTION:
+CRITICAL RULES:
+1. Extract ONLY skills that are explicitly mentioned as complete words in the text
+2. Skills must be separated by spaces (not substrings within other words)
+3. Only extract skills from this whitelist: {skills_whitelist}
+4. If a skill name appears inside another skill name without spaces, extract ONLY the longer skill name
+   Example: If text contains "JavaScript", extract ONLY "JavaScript" - do NOT extract "Java" or "R"
+5. Do NOT infer skills from context or related technologies
+6. Return skills as a JSON array with skill name, category, and level
 
-0. WHITELIST VALIDATION (FIRST CHECK):
-   - ONLY extract skills from this whitelist: {skills_whitelist}
-   - If a word in the text is NOT in this whitelist, do NOT extract it
-   - If a skill name appears inside another skill name without spaces, extract ONLY the longer skill name from the whitelist
-   - Example: If text contains "JavaScript" and "JavaScript" is in the whitelist, extract ONLY "JavaScript"
-   - Example: Do NOT extract "Java" or "R" if they appear inside "JavaScript" - extract ONLY "JavaScript"
+VALID SKILLS WHITELIST:
+{skills_whitelist}
 
-1. SPACE-BOUNDARY DETECTION (MOST IMPORTANT):
-   - A skill MUST be surrounded by spaces (or punctuation/line breaks) on BOTH sides
-   - A skill must appear as a COMPLETE, STANDALONE word separated by spaces
-   - If a skill appears INSIDE another word (no spaces around it), it is NOT a valid skill
-   - Example: Text "JavaScript" → Extract "JavaScript" ONLY (it's surrounded by spaces and in whitelist)
-   - Example: Text "JavaScript" → Do NOT extract "Java" (no space before "Java", it's part of "JavaScript", and "Java" would conflict)
-   - Example: Text "JavaScript" → Do NOT extract "Script" (no space before "Script", it's part of "JavaScript")
-   - Example: Text "JavaScript" → Do NOT extract "R" (no space before "R", it's part of "JavaScript")
-   - Example: Text "I know Java and JavaScript" → Extract BOTH "Java" (has spaces, in whitelist) AND "JavaScript" (has spaces, in whitelist)
-   - Example: Text "I use React" → Extract "React" ONLY (surrounded by spaces, in whitelist)
-   - Example: Text "React" → Do NOT extract "R" (no space before "R", it's part of "React")
+EXAMPLES:
+Text: "I have 5 years of JavaScript experience"
+Extract: [{{"skill": "JavaScript", "category": "Programming Languages", "level": "Advanced"}}]
+Do NOT extract: "Java" or "R" (they're part of "JavaScript")
 
-2. WORD BOUNDARY REQUIREMENT:
-   - Skills must be separated by spaces, punctuation, or line breaks on BOTH sides
-   - "JavaScript" is ONE skill, not "Java" + "Script" (because there's no space between them)
-   - "Node.js" is ONE skill (with a dot), not "Node" + "js" (because there's no space between them)
-   - Match the EXACT form as written in the text
-   - A skill like "Java" must have a space (or punctuation) BEFORE it AND AFTER it to be detected
-   - If "Java" appears inside "JavaScript" without spaces, it is NOT "Java" skill - extract ONLY "JavaScript"
+Text: "I know Java and JavaScript"
+Extract: [{{"skill": "Java", "category": "Programming Languages", "level": "Intermediate"}}, {{"skill": "JavaScript", "category": "Programming Languages", "level": "Intermediate"}}]
 
-3. DETECTION METHOD:
-   - Split the text by spaces to get individual words
-   - Only match skills that appear as complete words in this space-separated list
-   - Do NOT search for substrings within words
-   - Check each word against the whitelist
-   - Example: Text split by spaces: ["I", "know", "JavaScript"] → "JavaScript" is a complete word AND in whitelist → Extract it
-   - Example: Text split by spaces: ["I", "know", "JavaScript"] → "Java" is NOT a complete word → Do NOT extract it
-
-4. SUBSTRING EXCLUSION RULE:
-   - If a skill name appears inside another skill name without spaces, extract ONLY the longer skill name
-   - Example: "JavaScript" contains "Java" and "R" - if "JavaScript" appears, extract ONLY "JavaScript"
-   - Example: "TypeScript" contains "Script" - if "TypeScript" appears, extract ONLY "TypeScript"
-   - Example: "React" contains "R" and "Act" - if "React" appears, extract ONLY "React"
-   - This rule applies even if both skills are in the whitelist
-
-5. NO INFERENCE OR ASSUMPTION:
-   - Do NOT extract skills based on context clues
-   - Do NOT extract skills that "seem related" but aren't mentioned
-   - Do NOT extract skills from acronyms unless the full skill name appears in the whitelist
-   - If someone says "I code in JS", only extract if "JavaScript" or "JS" appears as a complete word AND is in whitelist
-
-6. EXPERIENCE LEVEL DETERMINATION:
-   - Extract years of experience mentioned near each skill
-   - Beginner: 0-1 years
-   - Intermediate: 2-4 years  
-   - Advanced: 5-9 years
-   - Expert: 10+ years
-   - If no years mentioned, use "Intermediate"
-
-7. VALIDATION CHECK:
-   - Before including a skill, verify it appears as a complete word separated by spaces
-   - Check that it's not part of a longer word (no spaces around it)
-   - Verify it's in the whitelist
-   - Verify it's not a substring of another skill that appears in the text
-   - Use this test: "Does this skill have spaces (or punctuation) before AND after it AND is it in the whitelist?"
-
-EXAMPLES OF CORRECT EXTRACTION (SPACE-BASED):
-
-Text: "I have 5 years of JavaScript experience and 2 years with React"
-Split by spaces: ["I", "have", "5", "years", "of", "JavaScript", "experience", "and", "2", "years", "with", "React"]
-Extract: [{{"skill": "JavaScript", "level": "Advanced"}}, {{"skill": "React", "level": "Intermediate"}}]
-Do NOT extract: "Java" (it's not a separate word, it's part of "JavaScript" which has no space before "Java")
-Do NOT extract: "R" (it's not a separate word, it's part of "JavaScript" and "React")
-
-Text: "I work with Python, Java, and TypeScript"
-Split by spaces: ["I", "work", "with", "Python,", "Java,", "and", "TypeScript"]
-Extract: [{{"skill": "Python", "level": "Intermediate"}}, {{"skill": "Java", "level": "Intermediate"}}, {{"skill": "TypeScript", "level": "Intermediate"}}]
-Note: "Java" is extracted because it appears as a separate word (with comma and space around it) AND is in whitelist
-
-Text: "13 years coding in Python"
-Split by spaces: ["13", "years", "coding", "in", "Python"]
-Extract: [{{"skill": "Python", "level": "Expert"}}]
-Do NOT extract: "Py" or "thon" (they're not separate words, not in whitelist)
-
-Text: "I use React and Node.js for web development"
-Split by spaces: ["I", "use", "React", "and", "Node.js", "for", "web", "development"]
-Extract: [{{"skill": "React", "level": "Intermediate"}}, {{"skill": "Node.js", "level": "Intermediate"}}]
-Do NOT extract: "Node" separately from "Node.js" (no space between them)
-
-EXAMPLES OF INCORRECT EXTRACTION (DO NOT DO THIS):
-
-Text: "I have experience with JavaScript"
-Split by spaces: ["I", "have", "experience", "with", "JavaScript"]
-WRONG: [{{"skill": "Java", "level": "Intermediate"}}, {{"skill": "JavaScript", "level": "Intermediate"}}, {{"skill": "R", "level": "Intermediate"}}]
-CORRECT: [{{"skill": "JavaScript", "level": "Intermediate"}}]
-Reason: "Java" and "R" are NOT separate words - they're part of "JavaScript" which has no spaces before them
-
-Text: "I work with TypeScript and React"
-Split by spaces: ["I", "work", "with", "TypeScript", "and", "React"]
-WRONG: [{{"skill": "Type", "level": "Intermediate"}}, {{"skill": "Script", "level": "Intermediate"}}, {{"skill": "TypeScript", "level": "Intermediate"}}, {{"skill": "R", "level": "Intermediate"}}, {{"skill": "React", "level": "Intermediate"}}]
-CORRECT: [{{"skill": "TypeScript", "level": "Intermediate"}}, {{"skill": "React", "level": "Intermediate"}}]
-Reason: "Type", "Script", and "R" are NOT separate words - they're part of longer skill names
-
-Text: "I know JavaScript and Java"
-Split by spaces: ["I", "know", "JavaScript", "and", "Java"]
-CORRECT: [{{"skill": "JavaScript", "level": "Intermediate"}}, {{"skill": "Java", "level": "Intermediate"}}]
-Reason: Both are separate words with spaces around them AND both are in whitelist
+Text: "I use React for frontend"
+Extract: [{{"skill": "React", "category": "Web Frameworks", "level": "Intermediate"}}]
+Do NOT extract: "R" (it's part of "React")
 
 INPUT TEXT:
 {text}
 
-EXTRACTION PROCESS:
-1. Split the text by spaces to get individual words
-2. For each word, check if it matches a skill name from the whitelist EXACTLY
-3. Only extract skills that appear as complete words (surrounded by spaces/punctuation) AND are in the whitelist
-4. If a shorter skill appears inside a longer skill without spaces, extract ONLY the longer skill
-5. For each skill, find any years of experience mentioned nearby
-6. Map years to level (0-1=Beginner, 2-4=Intermediate, 5-9=Advanced, 10+=Expert)
-7. Categorize each skill (Programming Languages, Web Frameworks, Tools & Technologies, Soft Skills)
-8. Return ONLY skills that passed the space-boundary test AND are in the whitelist
-
 OUTPUT FORMAT (JSON array only, no markdown, no explanation):
 [
-  {{"skill": "JavaScript", "category": "Programming Languages", "level": "Expert"}},
-  {{"skill": "React", "category": "Web Frameworks", "level": "Intermediate"}}
+  {{"skill": "SkillName", "category": "CategoryName", "level": "Beginner|Intermediate|Advanced|Expert"}}
 ]
 
-REMEMBER: 
-- Extract ONLY complete words separated by spaces
-- Do NOT extract substrings that appear inside other words
-- A skill must have spaces (or punctuation) BEFORE and AFTER it
-- A skill must be in the whitelist: {skills_whitelist}
-- If "Java" appears inside "JavaScript" without spaces, it is NOT the "Java" skill - extract ONLY "JavaScript"
-- If "R" appears inside "JavaScript" or "React" without spaces, it is NOT the "R" skill - extract ONLY the longer skill
-- Split text by spaces first, then match complete words only from the whitelist"""
+Return only explicitly mentioned skills from the whitelist. Do not infer or guess."""
         
         response = model.generate_content(prompt)
         
@@ -1013,6 +918,79 @@ def extract_skills_fallback(text: str) -> List[CategorizedSkill]:
 async def test_process_text():
     """Test endpoint to verify the route is accessible."""
     return {"message": "Process text endpoint is accessible", "status": "ok"}
+
+# Test endpoint for skill extraction verification
+# NOTE: This route must be defined BEFORE /api/skills/{user_id} to avoid route conflicts
+@app.post("/api/skills/test-extraction")
+async def test_skill_extraction(request: SkillExtractionTestRequest):
+    """
+    Test endpoint to verify Gemini skill extraction matches expected output.
+    
+    This endpoint processes text input and compares extracted skills with expected skills
+    to help verify that the extraction logic is working correctly.
+    
+    Example request:
+    {
+        "text": "I have 5 years of JavaScript experience",
+        "expected_skills": ["JavaScript"],
+        "user_id": "test_user"
+    }
+    """
+    try:
+        if not request.text or not request.text.strip():
+            raise HTTPException(status_code=400, detail="Text input is required")
+        
+        # Process text with Gemini
+        categorized_skills = await process_text_with_gemini(request.text)
+        
+        # Extract skill names from categorized skills
+        extracted_skill_names = [skill.skill for skill in categorized_skills]
+        extracted_skill_names_lower = [name.lower() for name in extracted_skill_names]
+        
+        # Compare with expected skills if provided
+        comparison_result = None
+        if request.expected_skills:
+            expected_lower = [skill.lower() for skill in request.expected_skills]
+            
+            # Find matches, missing, and unexpected
+            matches = [skill for skill in extracted_skill_names if skill.lower() in expected_lower]
+            missing = [skill for skill in request.expected_skills if skill.lower() not in extracted_skill_names_lower]
+            unexpected = [skill for skill in extracted_skill_names if skill.lower() not in expected_lower]
+            
+            # Check if extraction matches expectations
+            all_match = len(missing) == 0 and len(unexpected) == 0
+            
+            comparison_result = {
+                "matches_expected": all_match,
+                "matches": matches,
+                "missing_skills": missing,  # Expected but not extracted
+                "unexpected_skills": unexpected,  # Extracted but not expected
+                "expected_count": len(request.expected_skills),
+                "extracted_count": len(extracted_skill_names)
+            }
+        
+        # Build detailed response
+        response = {
+            "input_text": request.text,
+            "extracted_skills": [
+                {
+                    "skill": skill.skill,
+                    "category": skill.category,
+                    "level": skill.level
+                }
+                for skill in categorized_skills
+            ],
+            "extracted_skill_names": extracted_skill_names,
+            "extraction_count": len(extracted_skill_names),
+            "comparison": comparison_result
+        }
+        
+        return response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error testing skill extraction: {str(e)}")
 
 # Process text endpoint (must come before /api/skills to avoid route conflicts)
 @app.post("/api/skills/process-text", response_model=ProcessTextResponse)
