@@ -38,9 +38,11 @@ class ItemCreate(BaseModel):
 items_db = []
 next_id = 1
 
-# Create recordings directory if it doesn't exist
+# Create directories if they don't exist
 RECORDINGS_DIR = "recordings"
+RESUMES_DIR = "resumes"
 os.makedirs(RECORDINGS_DIR, exist_ok=True)
+os.makedirs(RESUMES_DIR, exist_ok=True)
 
 # Root endpoint
 @app.get("/")
@@ -55,6 +57,11 @@ async def root():
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
+
+# Test endpoint for resumes API
+@app.get("/api/resumes/test")
+async def test_resumes_endpoint():
+    return {"message": "Resumes API is working", "endpoint": "/api/resumes"}
 
 # Get all items
 @app.get("/items", response_model=List[Item])
@@ -130,6 +137,61 @@ async def upload_recording(audio: UploadFile = File(...)):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error saving recording: {str(e)}")
+
+# Upload resume
+@app.post("/api/resumes")
+async def upload_resume(resume: UploadFile = File(...)):
+    try:
+        # Check if filename exists
+        if not resume.filename:
+            raise HTTPException(
+                status_code=400,
+                detail="No filename provided"
+            )
+        
+        # Validate file type
+        allowed_extensions = [".pdf", ".doc", ".docx"]
+        file_extension = os.path.splitext(resume.filename)[1].lower()
+        
+        if file_extension not in allowed_extensions:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid file type. Allowed types: {', '.join(allowed_extensions)}"
+            )
+        
+        # Validate file size (10MB max)
+        content = await resume.read()
+        max_size = 10 * 1024 * 1024  # 10MB
+        if len(content) > max_size:
+            raise HTTPException(
+                status_code=400,
+                detail="File size exceeds 10MB limit"
+            )
+        
+        # Generate filename with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        original_name = os.path.splitext(resume.filename)[0]
+        # Sanitize filename to remove any problematic characters
+        original_name = "".join(c for c in original_name if c.isalnum() or c in (' ', '-', '_')).strip()
+        if not original_name:
+            original_name = "resume"
+        filename = f"{original_name}_{timestamp}{file_extension}"
+        file_path = os.path.join(RESUMES_DIR, filename)
+        
+        # Save the file
+        with open(file_path, "wb") as f:
+            f.write(content)
+        
+        return {
+            "message": "Resume saved successfully",
+            "filename": filename,
+            "file_path": file_path,
+            "size": len(content)
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error saving resume: {str(e)}")
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

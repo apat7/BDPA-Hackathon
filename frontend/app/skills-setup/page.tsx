@@ -17,6 +17,14 @@ export default function SkillsSetupPage() {
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
+  // Resume upload states
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isUploadingResume, setIsUploadingResume] = useState(false);
+  const [resumeUploadSuccess, setResumeUploadSuccess] = useState(false);
+  const [resumeError, setResumeError] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
@@ -123,6 +131,103 @@ export default function SkillsSetupPage() {
       setError("Failed to upload recording. Please try again.");
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  // Resume file handling
+  const handleFileSelect = (file: File) => {
+    setResumeError(null);
+    setResumeUploadSuccess(false);
+    
+    // Validate file type
+    const allowedTypes = ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
+    const allowedExtensions = [".pdf", ".doc", ".docx"];
+    const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf("."));
+    
+    if (!allowedTypes.includes(file.type) && !allowedExtensions.includes(fileExtension)) {
+      setResumeError("Invalid file type. Please upload a PDF, DOC, or DOCX file.");
+      return;
+    }
+    
+    // Validate file size (10MB max)
+    const maxSize = 10 * 1024 * 1024; // 10MB in bytes
+    if (file.size > maxSize) {
+      setResumeError("File size exceeds 10MB limit.");
+      return;
+    }
+    
+    setSelectedFile(file);
+  };
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleFileSelect(file);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      handleFileSelect(file);
+    }
+  };
+
+  const handleUploadResume = async () => {
+    if (!selectedFile) return;
+    
+    setIsUploadingResume(true);
+    setResumeError(null);
+    
+    try {
+      const formData = new FormData();
+      formData.append("resume", selectedFile);
+      
+      const response = await fetch("http://localhost:8000/api/resumes", {
+        method: "POST",
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        // Try to get error message from response
+        let errorMessage = "Failed to upload resume";
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.detail || errorData.message || errorMessage;
+        } catch {
+          // If response is not JSON, use status text
+          errorMessage = response.statusText || errorMessage;
+        }
+        throw new Error(errorMessage);
+      }
+      
+      const result = await response.json();
+      setResumeUploadSuccess(true);
+      setSelectedFile(null);
+      
+      // Reset success message after 3 seconds
+      setTimeout(() => {
+        setResumeUploadSuccess(false);
+      }, 3000);
+    } catch (err) {
+      console.error("Error uploading resume:", err);
+      const errorMessage = err instanceof Error ? err.message : "Failed to upload resume. Please try again.";
+      setResumeError(errorMessage);
+    } finally {
+      setIsUploadingResume(false);
     }
   };
 
@@ -283,24 +388,84 @@ export default function SkillsSetupPage() {
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                     Upload your resume
                   </label>
-                  <div className="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl p-12 text-center hover:border-blue-400 transition-all duration-300 hover:bg-blue-50/50 dark:hover:bg-blue-900/10">
+                  <div
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    className={`border-2 border-dashed rounded-xl p-12 text-center transition-all duration-300 ${
+                      isDragging
+                        ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
+                        : "border-slate-300 dark:border-slate-600 hover:border-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-900/10"
+                    }`}
+                  >
                     <div className="flex flex-col items-center justify-center gap-4">
                       <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
                         <FileText className="w-8 h-8 text-white" />
                       </div>
                       <div>
-                        <p className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
-                          Drop your resume here
-                        </p>
-                        <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
-                          or click to browse
-                        </p>
-                        <button
-                          type="button"
-                          className="px-6 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 transform"
-                        >
-                          Choose File
-                        </button>
+                        {selectedFile ? (
+                          <div className="space-y-3">
+                            <p className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
+                              {selectedFile.name}
+                            </p>
+                            <p className="text-sm text-slate-600 dark:text-slate-400">
+                              {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                            </p>
+                            <div className="flex gap-2 justify-center">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedFile(null);
+                                  if (fileInputRef.current) {
+                                    fileInputRef.current.value = "";
+                                  }
+                                }}
+                                className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all duration-300"
+                              >
+                                Remove
+                              </button>
+                              <button
+                                type="button"
+                                onClick={handleUploadResume}
+                                disabled={isUploadingResume}
+                                className="px-6 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 transform disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                {isUploadingResume ? "Uploading..." : "Upload"}
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <p className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
+                              {isDragging ? "Drop your resume here" : "Drop your resume here"}
+                            </p>
+                            <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+                              or click to browse
+                            </p>
+                            <input
+                              ref={fileInputRef}
+                              type="file"
+                              accept=".pdf,.doc,.docx"
+                              onChange={handleFileInputChange}
+                              className="hidden"
+                              id="resume-upload"
+                            />
+                            <label
+                              htmlFor="resume-upload"
+                              className="inline-block px-6 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 transform cursor-pointer"
+                            >
+                              Choose File
+                            </label>
+                          </>
+                        )}
+                        {resumeError && (
+                          <p className="text-sm text-red-500 mt-3">{resumeError}</p>
+                        )}
+                        {resumeUploadSuccess && (
+                          <p className="text-sm text-green-500 mt-3">
+                            Resume uploaded successfully!
+                          </p>
+                        )}
                         <p className="text-xs text-slate-500 dark:text-slate-500 mt-3">
                           Supported formats: PDF, DOC, DOCX (Max 10MB)
                         </p>
