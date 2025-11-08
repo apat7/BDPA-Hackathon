@@ -1,8 +1,10 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
 import uvicorn
+import os
+from datetime import datetime
 
 # Create FastAPI instance
 app = FastAPI(
@@ -35,6 +37,10 @@ class ItemCreate(BaseModel):
 # In-memory storage (replace with database in production)
 items_db = []
 next_id = 1
+
+# Create recordings directory if it doesn't exist
+RECORDINGS_DIR = "recordings"
+os.makedirs(RECORDINGS_DIR, exist_ok=True)
 
 # Root endpoint
 @app.get("/")
@@ -101,6 +107,29 @@ async def delete_item(item_id: int):
         raise HTTPException(status_code=404, detail="Item not found")
     items_db.pop(item_index)
     return None
+
+# Upload audio recording
+@app.post("/api/recordings")
+async def upload_recording(audio: UploadFile = File(...)):
+    try:
+        # Generate filename with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"recording_{timestamp}.webm"
+        file_path = os.path.join(RECORDINGS_DIR, filename)
+        
+        # Save the file
+        with open(file_path, "wb") as f:
+            content = await audio.read()
+            f.write(content)
+        
+        return {
+            "message": "Recording saved successfully",
+            "filename": filename,
+            "file_path": file_path,
+            "size": len(content)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error saving recording: {str(e)}")
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
