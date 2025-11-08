@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Filter, X, Building2, Briefcase, PlusCircle, Star } from "lucide-react";
+import { Filter, X, Building2, Briefcase, PlusCircle, Star, ChevronDown, Search, Check } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { useAuth } from "@/contexts/AuthContext";
 import { doc, getDoc, collection, getDocs } from "firebase/firestore";
@@ -39,7 +39,6 @@ export default function TargetPositionsPage() {
   const [loadingData, setLoadingData] = useState(true);
   const [selectedIndustry, setSelectedIndustry] = useState<string>("all");
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
-  const [filterByMySkills, setFilterByMySkills] = useState(false);
   const [filterCustomJobsOnly, setFilterCustomJobsOnly] = useState(false);
   const [filterFocusedJobsOnly, setFilterFocusedJobsOnly] = useState(false);
   const [isAddJobModalOpen, setIsAddJobModalOpen] = useState(false);
@@ -48,6 +47,12 @@ export default function TargetPositionsPage() {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [courseraRecommendations, setCourseraRecommendations] = useState<any[]>([]);
   const [loadingRecommendations, setLoadingRecommendations] = useState(false);
+  const [isSkillsDropdownOpen, setIsSkillsDropdownOpen] = useState(false);
+  const [skillsSearchQuery, setSkillsSearchQuery] = useState("");
+  const [isIndustryDropdownOpen, setIsIndustryDropdownOpen] = useState(false);
+  const [industrySearchQuery, setIndustrySearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<"highest" | "lowest">("highest");
+  const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -63,6 +68,30 @@ export default function TargetPositionsPage() {
       fetchFocusedPositionsIds(); // Fetch focused positions
     }
   }, [user]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (isSkillsDropdownOpen && !target.closest('.skills-dropdown-container')) {
+        setIsSkillsDropdownOpen(false);
+      }
+      if (isIndustryDropdownOpen && !target.closest('.industry-dropdown-container')) {
+        setIsIndustryDropdownOpen(false);
+      }
+      if (isSortDropdownOpen && !target.closest('.sort-dropdown-container')) {
+        setIsSortDropdownOpen(false);
+      }
+    };
+
+    if (isSkillsDropdownOpen || isIndustryDropdownOpen || isSortDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isSkillsDropdownOpen, isIndustryDropdownOpen, isSortDropdownOpen]);
 
   const fetchCourseraRecommendations = async (skills: string[]) => {
     setLoadingRecommendations(true);
@@ -213,6 +242,26 @@ export default function TargetPositionsPage() {
     return Array.from(skillsSet).sort();
   }, [positions]);
 
+  const filteredSkillsForDropdown = useMemo(() => {
+    if (!skillsSearchQuery.trim()) {
+      return allSkills;
+    }
+    const query = skillsSearchQuery.toLowerCase().trim();
+    return allSkills.filter((skill) =>
+      skill.toLowerCase().includes(query)
+    );
+  }, [allSkills, skillsSearchQuery]);
+
+  const filteredIndustriesForDropdown = useMemo(() => {
+    if (!industrySearchQuery.trim()) {
+      return industries;
+    }
+    const query = industrySearchQuery.toLowerCase().trim();
+    return industries.filter((industry) =>
+      industry.toLowerCase().includes(query)
+    );
+  }, [industries, industrySearchQuery]);
+
   const filteredPositions = useMemo(() => {
     let filtered = positionsWithProgress;
 
@@ -243,13 +292,15 @@ export default function TargetPositionsPage() {
       });
     }
 
-    // Filter by user's existing skills (only show positions where user has at least one matching skill)
-    if (filterByMySkills) {
-      filtered = filtered.filter((position) => position.matchingSkills.length > 0);
+    // Sort by completion percentage
+    if (sortBy === "highest") {
+      filtered = [...filtered].sort((a, b) => b.completionPercentage - a.completionPercentage);
+    } else if (sortBy === "lowest") {
+      filtered = [...filtered].sort((a, b) => a.completionPercentage - b.completionPercentage);
     }
 
     return filtered;
-  }, [positionsWithProgress, selectedIndustry, selectedSkills, filterByMySkills, filterCustomJobsOnly, filterFocusedJobsOnly]);
+  }, [positionsWithProgress, selectedIndustry, selectedSkills, filterCustomJobsOnly, filterFocusedJobsOnly, sortBy]);
 
   const handleAddCustomJob = async (jobDetails: { title: string; company: string; industry: string; description: string; requiredSkills: string }) => {
     if (!user) return;
@@ -373,7 +424,7 @@ export default function TargetPositionsPage() {
       <Navbar />
 
       {/* Main Content */}
-      <div className="container mx-auto px-6 py-8">
+      <div className="container mx-auto px-6 py-8 relative z-0">
         {/* Header */}
         <div className="mb-8 animate-fade-in-down">
           <h1 className="text-4xl md:text-5xl font-bold mb-2 text-slate-900 dark:text-white">
@@ -392,114 +443,333 @@ export default function TargetPositionsPage() {
         </div>
 
         {/* Filters */}
-        <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl rounded-2xl p-6 border border-slate-200 dark:border-slate-700 shadow-lg mb-8 animate-fade-in-up">
+        <div className="relative z-10 bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl rounded-2xl p-6 border border-slate-200 dark:border-slate-700 shadow-lg mb-8 animate-fade-in-up overflow-visible">
           <div className="flex items-center gap-3 mb-4">
             <Filter className="w-5 h-5 text-slate-600 dark:text-slate-400" />
             <h2 className="text-xl font-bold text-slate-900 dark:text-white">Filters</h2>
           </div>
 
-          <div className="space-y-4">
+          <div className="flex flex-wrap items-end gap-4 overflow-visible">
             {/* Industry Filter */}
-            <div>
+            <div className="relative">
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                 Industry
               </label>
-              <select
-                value={selectedIndustry}
-                onChange={(e) => setSelectedIndustry(e.target.value)}
-                className="w-full md:w-64 px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300"
-              >
-                <option value="all">All Industries</option>
-                {industries.map((industry) => (
-                  <option key={industry} value={industry}>
-                    {industry}
-                  </option>
-                ))}
-              </select>
-            </div>
+              <div className="relative industry-dropdown-container">
+                <button
+                  type="button"
+                  onClick={() => setIsIndustryDropdownOpen(!isIndustryDropdownOpen)}
+                  className="w-full md:w-64 px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 flex items-center justify-between"
+                >
+                  <span className="text-sm">
+                    {selectedIndustry === "all" ? "All Industries" : selectedIndustry}
+                  </span>
+                  <ChevronDown
+                    className={`w-4 h-4 transition-transform duration-300 ${
+                      isIndustryDropdownOpen ? "transform rotate-180" : ""
+                    }`}
+                  />
+                </button>
 
-            {/* Filter by My Skills Toggle */}
-            <div className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                id="filterByMySkills"
-                checked={filterByMySkills}
-                onChange={(e) => setFilterByMySkills(e.target.checked)}
-                className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-2 focus:ring-blue-500"
-              />
-              <label
-                htmlFor="filterByMySkills"
-                className="text-sm font-medium text-slate-700 dark:text-slate-300 cursor-pointer"
-              >
-                Show only positions matching my skills
-              </label>
-            </div>
+                {isIndustryDropdownOpen && (
+                  <div className="absolute z-[10000] mt-2 w-full md:w-64 bg-white dark:bg-slate-800 rounded-lg border-2 border-blue-500 dark:border-blue-400 shadow-2xl max-h-96 overflow-hidden flex flex-col">
+                    {/* Search Input */}
+                    <div className="p-3 border-b border-slate-200 dark:border-slate-700">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <input
+                          type="text"
+                          placeholder="Search industries..."
+                          value={industrySearchQuery}
+                          onChange={(e) => setIndustrySearchQuery(e.target.value)}
+                          className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          autoFocus
+                        />
+                      </div>
+                    </div>
 
-            {/* Filter by Custom Jobs Only Toggle */}
-            <div className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                id="filterCustomJobsOnly"
-                checked={filterCustomJobsOnly}
-                onChange={(e) => setFilterCustomJobsOnly(e.target.checked)}
-                className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-2 focus:ring-blue-500"
-              />
-              <label
-                htmlFor="filterCustomJobsOnly"
-                className="text-sm font-medium text-slate-700 dark:text-slate-300 cursor-pointer"
-              >
-                Show only custom jobs
-              </label>
-            </div>
-
-            {/* Filter by Focused Jobs Only Toggle */}
-            <div className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                id="filterFocusedJobsOnly"
-                checked={filterFocusedJobsOnly}
-                onChange={(e) => setFilterFocusedJobsOnly(e.target.checked)}
-                className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-2 focus:ring-blue-500"
-              />
-              <label
-                htmlFor="filterFocusedJobsOnly"
-                className="text-sm font-medium text-slate-700 dark:text-slate-300 cursor-pointer"
-              >
-                Show only focused positions
-              </label>
+                    {/* Industries List */}
+                    <div className="overflow-y-auto max-h-64">
+                      {filteredIndustriesForDropdown.length === 0 ? (
+                        <div className="p-4 text-center text-sm text-slate-500 dark:text-slate-400">
+                          No industries found
+                        </div>
+                      ) : (
+                        <div className="p-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedIndustry("all");
+                              setIndustrySearchQuery("");
+                            }}
+                            className={`w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer transition-colors duration-200 flex items-center justify-between ${
+                              selectedIndustry === "all"
+                                ? "bg-blue-50 dark:bg-blue-900/20"
+                                : ""
+                            }`}
+                          >
+                            <span className="text-sm text-slate-900 dark:text-white">
+                              All Industries
+                            </span>
+                            {selectedIndustry === "all" && (
+                              <Check className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                            )}
+                          </button>
+                          {filteredIndustriesForDropdown.map((industry) => {
+                            const isSelected = selectedIndustry === industry;
+                            return (
+                              <button
+                                key={industry}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedIndustry(industry);
+                                  setIndustrySearchQuery("");
+                                }}
+                                className={`w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer transition-colors duration-200 flex items-center justify-between ${
+                                  isSelected
+                                    ? "bg-blue-50 dark:bg-blue-900/20"
+                                    : ""
+                                }`}
+                              >
+                                <span className="text-sm text-slate-900 dark:text-white">
+                                  {industry}
+                                </span>
+                                {isSelected && (
+                                  <Check className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Skills Filter */}
-            <div>
+            <div className="relative">
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                 Filter by Skills
               </label>
-              <div className="flex flex-wrap gap-2">
-                {allSkills.slice(0, 20).map((skill) => (
-                  <button
-                    key={skill}
-                    onClick={() => toggleSkillFilter(skill)}
-                    className={`px-3 py-1 rounded-full text-sm font-medium transition-all duration-300 ${
-                      selectedSkills.includes(skill)
-                        ? "bg-blue-600 text-white shadow-lg scale-105"
-                        : "bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600"
-                    }`}
-                  >
-                    {skill}
-                  </button>
-                ))}
-              </div>
-              {selectedSkills.length > 0 && (
+              <div className="relative skills-dropdown-container">
                 <button
-                  onClick={() => setSelectedSkills([])}
-                  className="mt-3 text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 flex items-center gap-1"
+                  type="button"
+                  onClick={() => setIsSkillsDropdownOpen(!isSkillsDropdownOpen)}
+                  className="w-full md:w-64 px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 flex items-center justify-between"
                 >
-                  <X className="w-4 h-4" />
-                  Clear skill filters
+                  <span className="text-sm">
+                    {selectedSkills.length > 0
+                      ? `${selectedSkills.length} skill${selectedSkills.length > 1 ? "s" : ""} selected`
+                      : "Select skills"}
+                  </span>
+                  <ChevronDown
+                    className={`w-4 h-4 transition-transform duration-300 ${
+                      isSkillsDropdownOpen ? "transform rotate-180" : ""
+                    }`}
+                  />
                 </button>
-              )}
+
+                {isSkillsDropdownOpen && (
+                  <div className="absolute z-[10000] mt-2 w-full md:w-64 bg-white dark:bg-slate-800 rounded-lg border-2 border-blue-500 dark:border-blue-400 shadow-2xl max-h-96 overflow-hidden flex flex-col">
+                    {/* Search Input */}
+                    <div className="p-3 border-b border-slate-200 dark:border-slate-700">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <input
+                          type="text"
+                          placeholder="Search skills..."
+                          value={skillsSearchQuery}
+                          onChange={(e) => setSkillsSearchQuery(e.target.value)}
+                          className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          autoFocus
+                        />
+                      </div>
+                    </div>
+
+                    {/* Skills List with Checkboxes */}
+                    <div className="overflow-y-auto max-h-64">
+                      {filteredSkillsForDropdown.length === 0 ? (
+                        <div className="p-4 text-center text-sm text-slate-500 dark:text-slate-400">
+                          No skills found
+                        </div>
+                      ) : (
+                        <div className="p-2">
+                          {filteredSkillsForDropdown.map((skill) => {
+                            const isSelected = selectedSkills.includes(skill);
+                            return (
+                              <label
+                                key={skill}
+                                className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer transition-colors duration-200"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => toggleSkillFilter(skill)}
+                                  className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                                />
+                                <span className="text-sm text-slate-900 dark:text-white flex-1">
+                                  {skill}
+                                </span>
+                                {isSelected && (
+                                  <Check className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                                )}
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Footer with Clear Button */}
+                    {selectedSkills.length > 0 && (
+                      <div className="p-3 border-t border-slate-200 dark:border-slate-700">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedSkills([]);
+                            setSkillsSearchQuery("");
+                          }}
+                          className="w-full text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 flex items-center justify-center gap-2 py-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                        >
+                          <X className="w-4 h-4" />
+                          Clear all ({selectedSkills.length})
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Sort Dropdown */}
+            <div className="relative">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                Sort by
+              </label>
+              <div className="relative sort-dropdown-container">
+                <button
+                  type="button"
+                  onClick={() => setIsSortDropdownOpen(!isSortDropdownOpen)}
+                  className="w-full md:w-48 px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 flex items-center justify-between"
+                >
+                  <span className="text-sm">
+                    {sortBy === "highest" ? "Highest completion" : "Lowest completion"}
+                  </span>
+                  <ChevronDown
+                    className={`w-4 h-4 transition-transform duration-300 ${
+                      isSortDropdownOpen ? "transform rotate-180" : ""
+                    }`}
+                  />
+                </button>
+
+                {isSortDropdownOpen && (
+                  <div className="absolute z-[10000] mt-2 w-full md:w-48 bg-white dark:bg-slate-800 rounded-lg border-2 border-blue-500 dark:border-blue-400 shadow-2xl overflow-hidden flex flex-col">
+                    {/* Sort Options */}
+                    <div className="p-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSortBy("highest");
+                          setIsSortDropdownOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer transition-colors duration-200 flex items-center justify-between ${
+                          sortBy === "highest"
+                            ? "bg-blue-50 dark:bg-blue-900/20"
+                            : ""
+                        }`}
+                      >
+                        <span className="text-sm text-slate-900 dark:text-white">
+                          Highest completion
+                        </span>
+                        {sortBy === "highest" && (
+                          <Check className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSortBy("lowest");
+                          setIsSortDropdownOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer transition-colors duration-200 flex items-center justify-between ${
+                          sortBy === "lowest"
+                            ? "bg-blue-50 dark:bg-blue-900/20"
+                            : ""
+                        }`}
+                      >
+                        <span className="text-sm text-slate-900 dark:text-white">
+                          Lowest completion
+                        </span>
+                        {sortBy === "lowest" && (
+                          <Check className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Checkboxes (Vertical) - Right after sorting */}
+            <div className="flex flex-col gap-3">
+              {/* Filter by Custom Jobs Only Toggle */}
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  id="filterCustomJobsOnly"
+                  checked={filterCustomJobsOnly}
+                  onChange={(e) => setFilterCustomJobsOnly(e.target.checked)}
+                  className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                />
+                <label
+                  htmlFor="filterCustomJobsOnly"
+                  className="text-sm font-medium text-slate-700 dark:text-slate-300 cursor-pointer whitespace-nowrap"
+                >
+                  Show only custom jobs
+                </label>
+              </div>
+
+              {/* Filter by Focused Jobs Only Toggle */}
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  id="filterFocusedJobsOnly"
+                  checked={filterFocusedJobsOnly}
+                  onChange={(e) => setFilterFocusedJobsOnly(e.target.checked)}
+                  className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                />
+                <label
+                  htmlFor="filterFocusedJobsOnly"
+                  className="text-sm font-medium text-slate-700 dark:text-slate-300 cursor-pointer whitespace-nowrap"
+                >
+                  Show only focused positions
+                </label>
+              </div>
             </div>
           </div>
+
+          {/* Selected Skills Display - Full Width Below */}
+          {selectedSkills.length > 0 && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {selectedSkills.map((skill) => (
+                <span
+                  key={skill}
+                  className="px-3 py-1 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-sm font-medium flex items-center gap-2"
+                >
+                  {skill}
+                  <button
+                    type="button"
+                    onClick={() => toggleSkillFilter(skill)}
+                    className="hover:text-blue-900 dark:hover:text-blue-100 transition-colors"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Positions Grid */}
@@ -514,7 +784,7 @@ export default function TargetPositionsPage() {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 relative z-0">
             {filteredPositions.map((position, index) => (
               <div
                 key={position.id}
