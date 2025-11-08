@@ -40,6 +40,7 @@ export default function TargetPositionsPage() {
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [filterByMySkills, setFilterByMySkills] = useState(false);
   const [filterCustomJobsOnly, setFilterCustomJobsOnly] = useState(false);
+  const [filterFocusedJobsOnly, setFilterFocusedJobsOnly] = useState(false);
   const [isAddJobModalOpen, setIsAddJobModalOpen] = useState(false);
   const [focusedPositionIds, setFocusedPositionIds] = useState<Set<string>>(new Set());
   const [selectedPosition, setSelectedPosition] = useState<PositionWithProgress | null>(null);
@@ -219,6 +220,11 @@ export default function TargetPositionsPage() {
       filtered = filtered.filter((p) => p.isCustom === true);
     }
 
+    // Filter by focused jobs only
+    if (filterFocusedJobsOnly) {
+      filtered = filtered.filter((p) => p.isFocused === true);
+    }
+
     // Filter by industry
     if (selectedIndustry !== "all") {
       filtered = filtered.filter((p) => p.industry === selectedIndustry);
@@ -242,7 +248,7 @@ export default function TargetPositionsPage() {
     }
 
     return filtered;
-  }, [positionsWithProgress, selectedIndustry, selectedSkills, filterByMySkills, filterCustomJobsOnly]);
+  }, [positionsWithProgress, selectedIndustry, selectedSkills, filterByMySkills, filterCustomJobsOnly, filterFocusedJobsOnly]);
 
   const handleAddCustomJob = async (jobDetails: { title: string; company: string; industry: string; description: string; requiredSkills: string }) => {
     if (!user) return;
@@ -385,7 +391,7 @@ export default function TargetPositionsPage() {
               </Link>
               <Link
                 href="/target-positions"
-                className="text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all duration-300 hover:scale-105"
+                className="text-blue-600 dark:text-blue-400 font-semibold hover:text-blue-700 dark:hover:text-blue-300 transition-all duration-300 hover:scale-105"
               >
                 Target Positions
               </Link>
@@ -495,6 +501,23 @@ export default function TargetPositionsPage() {
                 className="text-sm font-medium text-slate-700 dark:text-slate-300 cursor-pointer"
               >
                 Show only custom jobs
+              </label>
+            </div>
+
+            {/* Filter by Focused Jobs Only Toggle */}
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="filterFocusedJobsOnly"
+                checked={filterFocusedJobsOnly}
+                onChange={(e) => setFilterFocusedJobsOnly(e.target.checked)}
+                className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-2 focus:ring-blue-500"
+              />
+              <label
+                htmlFor="filterFocusedJobsOnly"
+                className="text-sm font-medium text-slate-700 dark:text-slate-300 cursor-pointer"
+              >
+                Show only focused positions
               </label>
             </div>
 
