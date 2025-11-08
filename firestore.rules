@@ -9,6 +9,11 @@ service cloud.firestore {
       match /user_jobs/{jobId} {
         allow read, create, update, delete: if request.auth != null && request.auth.uid == userId;
       }
+
+      // Users can read, create, update, and delete their own focused positions
+      match /focused_positions/{positionId} {
+        allow read, create, update, delete: if request.auth != null && request.auth.uid == userId;
+      }
     }
     
     // Positions collection - authenticated users can read, and write for seeding

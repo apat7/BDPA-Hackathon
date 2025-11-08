@@ -1,0 +1,47 @@
+Zachary Kelly
+(317) 864-0794 | zakellyputra@gmail.com | linkedin.com/in/zakellyputra/ | US Citizen
+Education
+Purdue University May 2028
+Bachelor of Science in Computer Science
+Technical Skills
+Languages and Frameworks: Java, Java Swing, JavaScript, Python, C, C++, R, HTML/CSS, JUnit, Cypress.io
+Developer Tools: Git, Jira, Bitbucket, VS Code, Vim, Cursor, MacOS, Bash, OpenAI API, Robot Operating System
+Experience
+Undergraduate Data Science Researcher August 2025 - May 2026
+The Data Mine, Purdue University Indianapolis, IN
+• Collaborated with Cummins on analyzing data of engine fault codes pertaining but not limited to to the type of
+fault, how long the engine was running prior to the fault, and amount of time between an engine fault and repair.
+• Compiled and visualized data with Databricks and Power BI to communicate findings.
+Marines Sergeant August 2022 - August 2024
+Singapore Armed Forces Singapore
+• Led a team responsible for the operation of the General Purpose Machine Gun in the Guards formation, an elite
+infantry unit specializing in amphibious and heliborne operations, considered equivalent to the US Marines.
+• Enforced the safety and discipline of platoon members during training sessions, assuming the role of safety officer to
+monitor the temperature and potential hazards in the surrounding area of the training grounds.
+• Cultivated fitness, resilience, and camaraderie in a high-pressure military environment to ensure mission success.
+FIRST Robotics Competition Backend Developer September 2021 - February 2022
+FIRST Team 4817 Singapore
+• DevelopedJavacodecollaborativelyusingWPILibrarytoprogramarobottoplaybasketballagainstotherrobots.
+• Programmed a swerve drive system enabling simultaneous omnidirectional movement and rotation.
+• Integrated LiDAR to detect reflective strips on the hoop rim, directing the input to a computer vision model via
+ROS, allowing the robot to aim and shoot autonomously and allowing the pilot to focus on other game aspects.
+Automation Testing Intern September 2021 – November 2021
+Teamie Singapore
+• Designed and implemented test automation scripts using JavaScript and Cypress.io to allow the company to run
+automated tests to push updates quickly, rather than relying solely on their team of remote manual testers.
+• Created a reusable template to build tests for future web pages, removing the bottleneck of manual testing and
+moving towards an an automated system, allowing manpower to focus on more important areas of the application.
+• Trained manual testers to write tests with Cypress.io, saving Teamie a significant amount of money and manpower.
+Projects
+Pok´emon ROM Hack | Hexadecimal Editing, Low-Level Scripting April 2022 - May 2022
+• Developed a Pok´emon ROM hack by finding free space with a read only memory (ROM) file using hexadecimal
+editing programs and inserting scripts to make use of existing sprites and maps to create an original game.
+• Delivered a fully playable game with original maps, battles, events and dialogue to make a new game with multiple
+hours of gameplay to experience on top of the base game.
+GPT-3 Research | Python, OpenAI API, NLP February 2022 - April 2022
+• Fine-tuned a GPT-3 model to generate Reddit posts using a 35,000+ post dataset across multiple Subreddits.
+• Conducted a survey with 30+ participants, finding a 52% accuracy in distinguishing AI from human content.
+• Demonstrated the ease of fine-tuning an NLP model to imitate human social media posts across different contexts
+with the use of different Subreddits, i.e. generating posts about legal advice or memes.
+• Highlighted the increasing accessibility and potential of NLP models, predicting that AI tools would rapidly become
+more consumer friendly with tools like ChatGPT, Grok, and Gemini rising in popularity.

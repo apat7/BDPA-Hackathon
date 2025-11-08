@@ -37,23 +37,24 @@ export default function TagInput({
 
   // Filter suggestions based on input
   useEffect(() => {
-    if (inputValue.trim() === "") {
-      setSuggestions([]);
-      setShowSuggestions(false);
-      return;
-    }
-
     const selectedSkillNames = selectedSkills.map((s) => s.skill);
-    const filtered = skills
-      .filter(
-        (skill) =>
-          skill.toLowerCase().includes(inputValue.toLowerCase()) &&
-          !selectedSkillNames.includes(skill)
-      )
-      .slice(0, 10); // Limit to 10 suggestions
+    const availableSkills = skills.filter(
+      (skill) => !selectedSkillNames.includes(skill)
+    );
 
-    setSuggestions(filtered);
-    setShowSuggestions(filtered.length > 0);
+    if (inputValue.trim() === "") {
+      // When input is empty, show top 20 available skills
+      setSuggestions(availableSkills.slice(0, 20));
+    } else {
+      // When typing, filter and show matching skills
+      const filtered = availableSkills
+        .filter((skill) =>
+          skill.toLowerCase().includes(inputValue.toLowerCase())
+        )
+        .slice(0, 20); // Limit to 20 suggestions
+      setSuggestions(filtered);
+    }
+    
     setSelectedIndex(-1);
   }, [inputValue, skills, selectedSkills]);
 
@@ -79,8 +80,26 @@ export default function TagInput({
   };
 
   const handleInputFocus = () => {
-    if (suggestions.length > 0) {
-      setShowSuggestions(true);
+    // Show dropdown when focused, even if input is empty
+    const selectedSkillNames = selectedSkills.map((s) => s.skill);
+    const availableSkills = skills.filter(
+      (skill) => !selectedSkillNames.includes(skill)
+    );
+    
+    if (inputValue.trim() === "") {
+      // Show top 20 available skills when input is empty
+      const topSkills = availableSkills.slice(0, 20);
+      setSuggestions(topSkills);
+      // Show dropdown if there are available skills
+      if (topSkills.length > 0) {
+        setShowSuggestions(true);
+      }
+    } else {
+      // If there's input, suggestions should already be set by useEffect
+      // Just show the dropdown if there are suggestions
+      if (suggestions.length > 0) {
+        setShowSuggestions(true);
+      }
     }
   };
 
@@ -180,6 +199,11 @@ export default function TagInput({
             ref={dropdownRef}
             className="absolute z-50 w-full mt-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-2xl max-h-60 overflow-y-auto animate-fade-in-up"
           >
+            {inputValue.trim() === "" && (
+              <div className="px-4 py-2 text-xs font-semibold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
+                Available Skills (Type to filter)
+              </div>
+            )}
             {suggestions.map((skill, index) => (
               <button
                 key={skill}
@@ -190,7 +214,7 @@ export default function TagInput({
                     ? "bg-blue-50 dark:bg-blue-900/20"
                     : ""
                 } ${
-                  index === 0 ? "rounded-t-lg" : ""
+                  index === 0 && inputValue.trim() !== "" ? "rounded-t-lg" : ""
                 } ${
                   index === suggestions.length - 1 ? "rounded-b-lg" : ""
                 }`}

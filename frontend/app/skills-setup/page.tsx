@@ -7,7 +7,7 @@ import TagInput, { SkillWithLevel } from "@/components/TagInput";
 import { SKILLS_LIST } from "@/lib/skills";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
-import { doc, updateDoc } from "firebase/firestore";
+import { doc, updateDoc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 type InputMethod = "resume" | "voice";
@@ -38,6 +38,9 @@ export default function SkillsSetupPage() {
   const [resumeUploadSuccess, setResumeUploadSuccess] = useState(false);
   const [resumeError, setResumeError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  
+  // Skills loading state
+  const [isLoadingSkills, setIsLoadingSkills] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -141,11 +144,6 @@ export default function SkillsSetupPage() {
       if (result.transcription && result.transcription.trim()) {
         await processTextWithGemini(result.transcription);
       }
-      
-      // Redirect to target-positions after successful upload
-      setTimeout(() => {
-        router.push("/target-positions");
-      }, 1500);
     } catch (err) {
       console.error("Error uploading recording:", err);
       setError("Failed to upload recording. Please try again.");
@@ -242,11 +240,6 @@ export default function SkillsSetupPage() {
       if (result.text && result.text.trim()) {
         await processTextWithGemini(result.text);
       }
-      
-      // Redirect to target-positions after successful upload
-      setTimeout(() => {
-        router.push("/target-positions");
-      }, 1500);
     } catch (err) {
       console.error("Error uploading resume:", err);
       const errorMessage = err instanceof Error ? err.message : "Failed to upload resume. Please try again.";
@@ -367,11 +360,6 @@ export default function SkillsSetupPage() {
       }
 
       setSkillsSaveSuccess(true);
-      
-      // Redirect to target-positions after successful save
-      setTimeout(() => {
-        router.push("/target-positions");
-      }, 1500);
     } catch (err) {
       console.error("Error saving skills:", err);
       const errorMessage = err instanceof Error ? err.message : "Failed to save skills. Please try again.";
@@ -380,6 +368,49 @@ export default function SkillsSetupPage() {
       setIsSavingSkills(false);
     }
   };
+
+  // Load existing skills from Firebase when user is available
+  useEffect(() => {
+    const loadExistingSkills = async () => {
+      if (!user) return;
+
+      setIsLoadingSkills(true);
+      try {
+        const userDocRef = doc(db, "users", user.uid);
+        const userDoc = await getDoc(userDocRef);
+        
+        if (userDoc.exists()) {
+          const data = userDoc.data();
+          
+          // Handle different data formats
+          if (data.skills && Array.isArray(data.skills) && data.skills.length > 0) {
+            // Check if it's an array of objects with skill and level properties
+            const skillsWithLevels: SkillWithLevel[] = data.skills.map((s: any) => {
+              // Handle both object format {skill: "Java", level: "Intermediate"} and string format
+              if (typeof s === "string") {
+                return { skill: s, level: "Intermediate" };
+              } else if (s && typeof s === "object") {
+                return {
+                  skill: s.skill || s,
+                  level: s.level || "Intermediate",
+                };
+              }
+              return { skill: String(s), level: "Intermediate" };
+            });
+            
+            setSelectedSkills(skillsWithLevels);
+          }
+        }
+      } catch (err) {
+        console.error("Error loading existing skills:", err);
+        // Don't show error to user - just log it, as this is a background operation
+      } finally {
+        setIsLoadingSkills(false);
+      }
+    };
+
+    loadExistingSkills();
+  }, [user]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -637,8 +668,19 @@ export default function SkillsSetupPage() {
                       )}
                       {skillsSaveSuccess && (
                         <p className="text-sm text-green-500 mt-2 text-center">
-                          Skills saved successfully! Redirecting...
+                          Skills saved successfully!
                         </p>
+                      )}
+                      
+                      {/* Continue to Target Positions Button */}
+                      {(skillsSaveSuccess || selectedSkills.length > 0) && (
+                        <button
+                          type="button"
+                          onClick={() => router.push("/target-positions")}
+                          className="w-full px-6 py-3 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 transform"
+                        >
+                          Continue to Target Positions
+                        </button>
                       )}
                     </div>
                   )}
@@ -773,8 +815,19 @@ export default function SkillsSetupPage() {
                       )}
                       {skillsSaveSuccess && (
                         <p className="text-sm text-green-500 mt-2 text-center">
-                          Skills saved successfully! Redirecting...
+                          Skills saved successfully!
                         </p>
+                      )}
+                      
+                      {/* Continue to Target Positions Button */}
+                      {(skillsSaveSuccess || selectedSkills.length > 0) && (
+                        <button
+                          type="button"
+                          onClick={() => router.push("/target-positions")}
+                          className="w-full px-6 py-3 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 transform"
+                        >
+                          Continue to Target Positions
+                        </button>
                       )}
                     </div>
                   )}

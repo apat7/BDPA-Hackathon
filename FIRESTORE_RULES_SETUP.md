@@ -18,9 +18,19 @@ service cloud.firestore {
     // Users can read and write their own user document
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
+
+      // Users can read, create, update, and delete their own custom jobs
+      match /user_jobs/{jobId} {
+        allow read, create, update, delete: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Users can read, create, update, and delete their own focused positions
+      match /focused_positions/{positionId} {
+        allow read, create, update, delete: if request.auth != null && request.auth.uid == userId;
+      }
     }
     
-    // Positions collection - authenticated users can read and write
+    // Positions collection - authenticated users can read, and write for seeding
     match /positions/{positionId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null;
@@ -35,6 +45,8 @@ service cloud.firestore {
 ### What These Rules Do:
 
 - **Users collection**: Users can only read/write their own user document
+- **User Jobs subcollection**: Users can create, read, update, and delete their own custom jobs
+- **Focused Positions subcollection**: Users can manage their own focused positions
 - **Positions collection**: Any authenticated user can:
   - Read positions (needed for the Target Positions page)
   - Create positions (needed for seeding)

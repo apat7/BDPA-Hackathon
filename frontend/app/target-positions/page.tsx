@@ -3,11 +3,12 @@
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Target, Filter, X, Building2, Briefcase, LogOut, Settings, User, PlusCircle } from "lucide-react";
+import { Target, Filter, X, Building2, Briefcase, LogOut, Settings, User, PlusCircle, Star } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { doc, getDoc, collection, getDocs } from "firebase/firestore";
-import { db, saveUserJob, fetchUserJobs, deleteUserJob } from "@/lib/firebase";
+import { db, saveUserJob, fetchUserJobs, deleteUserJob, saveFocusedPosition, removeFocusedPosition, fetchFocusedPositions } from "@/lib/firebase";
 import AddJobModal from "@/components/AddJobModal";
+import PositionDetailModal from "@/components/PositionDetailModal";
 
 interface Position {
   id: string;
@@ -25,6 +26,7 @@ interface PositionWithProgress extends Position {
   completionPercentage: number;
   matchingSkills: string[];
   missingSkills: string[];
+  isFocused?: boolean;
 }
 
 export default function TargetPositionsPage() {
@@ -37,7 +39,11 @@ export default function TargetPositionsPage() {
   const [selectedIndustry, setSelectedIndustry] = useState<string>("all");
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [filterByMySkills, setFilterByMySkills] = useState(false);
-  const [isAddJobModalOpen, setIsAddJobModalOpen] = useState(false); // State for modal visibility
+  const [filterCustomJobsOnly, setFilterCustomJobsOnly] = useState(false);
+  const [isAddJobModalOpen, setIsAddJobModalOpen] = useState(false);
+  const [focusedPositionIds, setFocusedPositionIds] = useState<Set<string>>(new Set());
+  const [selectedPosition, setSelectedPosition] = useState<PositionWithProgress | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -50,6 +56,7 @@ export default function TargetPositionsPage() {
       fetchUserSkills();
       fetchPositions();
       fetchAndSetUserJobs(); // Fetch custom jobs for the user
+      fetchFocusedPositionsIds(); // Fetch focused positions
     }
   }, [user]);
 
@@ -60,6 +67,16 @@ export default function TargetPositionsPage() {
       setCustomJobs(userJobs);
     } catch (error) {
       console.error("Error fetching user's custom jobs:", error);
+    }
+  };
+
+  const fetchFocusedPositionsIds = async () => {
+    if (!user) return;
+    try {
+      const focusedIds = await fetchFocusedPositions(user.uid);
+      setFocusedPositionIds(new Set(focusedIds));
+    } catch (error) {
+      console.error("Error fetching focused positions:", error);
     }
   };
 
@@ -145,9 +162,10 @@ export default function TargetPositionsPage() {
         completionPercentage: percentage,
         matchingSkills: matching,
         missingSkills: missing,
+        isFocused: focusedPositionIds.has(position.id),
       };
     });
-  }, [positions, customJobs, userSkills, user]);
+  }, [positions, customJobs, userSkills, user, focusedPositionIds]);
 
   const industries = useMemo(() => {
     const uniqueIndustries = Array.from(
@@ -168,6 +186,11 @@ export default function TargetPositionsPage() {
 
   const filteredPositions = useMemo(() => {
     let filtered = positionsWithProgress;
+
+    // Filter by custom jobs only
+    if (filterCustomJobsOnly) {
+      filtered = filtered.filter((p) => p.isCustom === true);
+    }
 
     // Filter by industry
     if (selectedIndustry !== "all") {
@@ -192,7 +215,7 @@ export default function TargetPositionsPage() {
     }
 
     return filtered;
-  }, [positionsWithProgress, selectedIndustry, selectedSkills, filterByMySkills]);
+  }, [positionsWithProgress, selectedIndustry, selectedSkills, filterByMySkills, filterCustomJobsOnly]);
 
   const handleAddCustomJob = async (jobDetails: { title: string; company: string; industry: string; description: string; requiredSkills: string }) => {
     if (!user) return;
@@ -208,11 +231,14 @@ export default function TargetPositionsPage() {
     };
     try {
       await saveUserJob(user.uid, newCustomJob); // Save to Firebase
-      setCustomJobs((prev) => [...prev, newCustomJob]);
-      setIsAddJobModalOpen(false); // Close modal after submission
-    } catch (error) {
+      // Refetch custom jobs from Firebase to ensure the new job appears with correct data
+      await fetchAndSetUserJobs();
+      setIsAddJobModalOpen(false); // Close modal after successful submission
+    } catch (error: any) {
       console.error("Error saving custom job to Firebase:", error);
-      // Optionally, show an error message to the user
+      // Show more detailed error message
+      const errorMessage = error?.message || error?.code || "Unknown error";
+      alert(`Failed to save custom job: ${errorMessage}. Please try again.`);
     }
   };
 
@@ -241,6 +267,46 @@ export default function TargetPositionsPage() {
         ? prev.filter((s) => s !== skill)
         : [...prev, skill]
     );
+  };
+
+  const handlePositionClick = (position: PositionWithProgress) => {
+    setSelectedPosition(position);
+    setIsDetailModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsDetailModalOpen(false);
+    setSelectedPosition(null);
+  };
+
+  const handleToggleFocus = async (positionId: string) => {
+    if (!user) return;
+    
+    const isCurrentlyFocused = focusedPositionIds.has(positionId);
+    
+    try {
+      if (isCurrentlyFocused) {
+        await removeFocusedPosition(user.uid, positionId);
+        setFocusedPositionIds((prev) => {
+          const newSet = new Set(prev);
+          newSet.delete(positionId);
+          return newSet;
+        });
+      } else {
+        await saveFocusedPosition(user.uid, positionId);
+        setFocusedPositionIds((prev) => new Set(prev).add(positionId));
+      }
+      
+      // Update selected position if modal is open
+      if (selectedPosition && selectedPosition.id === positionId) {
+        setSelectedPosition({
+          ...selectedPosition,
+          isFocused: !isCurrentlyFocused,
+        });
+      }
+    } catch (error) {
+      console.error("Error toggling focus:", error);
+    }
   };
 
   const getProgressColor = (percentage: number) => {
@@ -364,6 +430,23 @@ export default function TargetPositionsPage() {
               </label>
             </div>
 
+            {/* Filter by Custom Jobs Only Toggle */}
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="filterCustomJobsOnly"
+                checked={filterCustomJobsOnly}
+                onChange={(e) => setFilterCustomJobsOnly(e.target.checked)}
+                className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-2 focus:ring-blue-500"
+              />
+              <label
+                htmlFor="filterCustomJobsOnly"
+                className="text-sm font-medium text-slate-700 dark:text-slate-300 cursor-pointer"
+              >
+                Show only custom jobs
+              </label>
+            </div>
+
             {/* Skills Filter */}
             <div>
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
@@ -413,7 +496,8 @@ export default function TargetPositionsPage() {
             {filteredPositions.map((position, index) => (
               <div
                 key={position.id}
-                className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl rounded-2xl p-6 border border-slate-200 dark:border-slate-700 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 animate-fade-in-up"
+                onClick={() => handlePositionClick(position)}
+                className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl rounded-2xl p-6 border border-slate-200 dark:border-slate-700 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 animate-fade-in-up cursor-pointer"
                 style={{ animationDelay: `${index * 0.1}s` }}
               >
                 {/* Header */}
@@ -426,8 +510,11 @@ export default function TargetPositionsPage() {
                           Custom
                         </span>
                       )}
+                      {position.isFocused && (
+                        <Star className="w-4 h-4 text-yellow-500 fill-yellow-500 inline-block ml-2" />
+                      )}
                     </h3>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                       <div className="px-3 py-1 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-sm font-semibold">
                         {position.completionPercentage}%
                       </div>
@@ -528,6 +615,12 @@ export default function TargetPositionsPage() {
         isOpen={isAddJobModalOpen}
         onClose={() => setIsAddJobModalOpen(false)}
         onSubmit={handleAddCustomJob}
+      />
+      <PositionDetailModal
+        isOpen={isDetailModalOpen}
+        onClose={handleCloseModal}
+        position={selectedPosition}
+        onToggleFocus={() => selectedPosition && handleToggleFocus(selectedPosition.id)}
       />
     </div>
   );
