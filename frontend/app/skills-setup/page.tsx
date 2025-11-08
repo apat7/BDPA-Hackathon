@@ -8,7 +8,7 @@ import { SKILLS_LIST } from "@/lib/skills";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import { doc, updateDoc } from "firebase/firestore";
-import { getFirestoreInstance } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 
 type InputMethod = "resume" | "voice";
 
@@ -330,7 +330,6 @@ export default function SkillsSetupPage() {
 
     try {
       // Save skills to Firebase Firestore
-      const db = getFirestoreInstance();
       const userDocRef = doc(db, "users", user.uid);
       
       // Prepare skills data for Firebase
@@ -399,7 +398,7 @@ export default function SkillsSetupPage() {
       <div className="w-full max-w-4xl">
         {/* Back to Home Link */}
         <Link 
-          href="/"
+          href="/dashboard"
           className="inline-flex items-center gap-2 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all duration-300 mb-8 animate-fade-in-down hover:scale-105"
         >
           <ArrowLeft className="w-4 h-4" />
