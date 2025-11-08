@@ -217,10 +217,16 @@ export default function TargetPositionsPage() {
       <nav className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border-b border-slate-200 dark:border-slate-700 sticky top-0 z-50">
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
-            <div className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+            <Link href="/" className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent hover:scale-105 transition-transform duration-300">
               SkillBridge
-            </div>
+            </Link>
             <div className="flex items-center gap-4">
+              <Link
+                href="/"
+                className="text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all duration-300 hover:scale-105"
+              >
+                Home
+              </Link>
               <Link
                 href="/dashboard"
                 className="text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all duration-300 hover:scale-105"
@@ -228,10 +234,22 @@ export default function TargetPositionsPage() {
                 Dashboard
               </Link>
               <Link
+                href="/target-positions"
+                className="text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all duration-300 hover:scale-105"
+              >
+                Target Positions
+              </Link>
+              <Link
                 href="/skills-setup"
                 className="text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all duration-300 hover:scale-105"
               >
                 Skills Setup
+              </Link>
+              <Link
+                href="/seed-positions"
+                className="text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all duration-300 hover:scale-105"
+              >
+                Seed Positions
               </Link>
               <button className="p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all duration-300 hover:scale-105">
                 <Settings className="w-5 h-5" />
@@ -450,6 +468,29 @@ export default function TargetPositionsPage() {
           </div>
         )}
       </div>
+
+      {/* Footer */}
+      <footer className="container mx-auto px-6 py-12 border-t border-slate-200 dark:border-slate-800 mt-12">
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+          <div className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+            SkillBridge
+          </div>
+          <div className="flex gap-6 text-sm text-slate-600 dark:text-slate-400">
+            <Link href="/privacy-policy" className="hover:text-slate-900 dark:hover:text-white transition-colors duration-300">
+              Privacy Policy
+            </Link>
+            <Link href="/terms-of-service" className="hover:text-slate-900 dark:hover:text-white transition-colors duration-300">
+              Terms of Service
+            </Link>
+            <Link href="/contact" className="hover:text-slate-900 dark:hover:text-white transition-colors duration-300">
+              Contact
+            </Link>
+          </div>
+        </div>
+        <div className="text-center mt-6 text-sm text-slate-500 dark:text-slate-500">
+          © 2024 SkillBridge. All rights reserved.
+        </div>
+      </footer>
     </div>
   );
 }
