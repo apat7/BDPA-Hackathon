@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { BarChart, TrendingUp, Target, BookOpen, User, Settings, LogOut, CheckCircle, AlertCircle, Clock } from "lucide-react";
+import { BarChart, TrendingUp, Target, BookOpen, User, Settings, LogOut, CheckCircle, AlertCircle, Clock, ExternalLink } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { doc, getDoc, collection, getDocs } from "firebase/firestore";
 import { db, fetchUserJobs, fetchFocusedPositions } from "@/lib/firebase";
@@ -16,6 +16,7 @@ interface Position {
   description?: string;
   company?: string;
   isCustom?: boolean;
+  jobUrl?: string;
   userId?: string;
 }
 
@@ -26,6 +27,21 @@ interface SkillGap {
   priority: "High" | "Medium" | "Low";
 }
 
+interface PositionWithProgress extends Position {
+  completionPercentage: number;
+  matchingSkills: string[];
+  missingSkills: string[];
+  isFocused?: boolean;
+}
+
+interface CourseraRecommendation {
+  id: string;
+  title: string;
+  platform: string;
+  url: string;
+  description: string;
+}
+
 export default function Dashboard() {
   const { user, loading, signOut } = useAuth();
   const router = useRouter();
@@ -33,6 +49,8 @@ export default function Dashboard() {
   const [positions, setPositions] = useState<Position[]>([]);
   const [customJobs, setCustomJobs] = useState<Position[]>([]);
   const [focusedPositionIds, setFocusedPositionIds] = useState<Set<string>>(new Set());
+  const [courseraRecommendations, setCourseraRecommendations] = useState<CourseraRecommendation[]>([]);
+  const [loadingRecommendations, setLoadingRecommendations] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
 
   useEffect(() => {
@@ -69,7 +87,6 @@ export default function Dashboard() {
       console.error("Error fetching focused positions:", error);
     }
   };
-
   const fetchUserSkills = async () => {
     if (!user) return;
     try {
@@ -188,6 +205,90 @@ export default function Dashboard() {
         return "from-yellow-500 to-yellow-600";
       case "Low":
         return "from-blue-500 to-blue-600";
+    }
+  };
+
+  const calculateCompletionPercentage = (
+    requiredSkills: string[],
+    userSkills: string[]
+  ): { percentage: number; matching: string[]; missing: string[] } => {
+    if (requiredSkills.length === 0) {
+      return { percentage: 0, matching: [], missing: [] };
+    }
+
+    const userSkillsLower = userSkills.map((skill) => skill.toLowerCase().trim());
+    const matching: string[] = [];
+    const missing: string[] = [];
+
+    requiredSkills.forEach((skill) => {
+      const skillLower = skill.toLowerCase().trim();
+      if (userSkillsLower.includes(skillLower)) {
+        matching.push(skill);
+      } else {
+        missing.push(skill);
+      }
+    });
+
+    const percentage = Math.round((matching.length / requiredSkills.length) * 100);
+    return { percentage, matching, missing };
+  };
+
+  const focusedPositionsWithProgress: PositionWithProgress[] = useMemo(() => {
+    return positions
+      .filter(position => focusedPositionIds.has(position.id))
+      .map((position) => {
+        const { percentage, matching, missing } = calculateCompletionPercentage(
+          position.requiredSkills,
+          userSkills
+        );
+        return {
+          ...position,
+          completionPercentage: percentage,
+          matchingSkills: matching,
+          missingSkills: missing,
+          isFocused: true,
+        };
+      });
+  }, [positions, userSkills, focusedPositionIds]);
+
+  const aggregatedMissingSkills = useMemo(() => {
+    const skillsSet = new Set<string>();
+    focusedPositionsWithProgress.forEach(position => {
+      position.missingSkills.forEach(skill => skillsSet.add(skill));
+    });
+    return Array.from(skillsSet);
+  }, [focusedPositionsWithProgress]);
+
+  useEffect(() => {
+    if (aggregatedMissingSkills.length > 0) {
+      fetchCourseraRecommendations(aggregatedMissingSkills);
+    } else {
+      setCourseraRecommendations([]);
+    }
+  }, [aggregatedMissingSkills]);
+
+  const fetchCourseraRecommendations = async (skills: string[]) => {
+    setLoadingRecommendations(true);
+    try {
+      const response = await fetch("/api/coursera-recommendations", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ skills }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setCourseraRecommendations(data.recommendations);
+      } else {
+        console.error("Failed to fetch Coursera recommendations:", data.error);
+        setCourseraRecommendations([]);
+      }
+    } catch (error) {
+      console.error("Error fetching Coursera recommendations:", error);
+      setCourseraRecommendations([]);
+    } finally {
+      setLoadingRecommendations(false);
     }
   };
 
@@ -393,54 +494,66 @@ export default function Dashboard() {
         <div className="mt-6 bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl rounded-2xl p-6 border border-slate-200 dark:border-slate-700 shadow-lg animate-fade-in-up animate-delay-700">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Recommended Learning Paths</h2>
-            <button className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors">
+            {/* <button className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors">
               View All
-            </button>
+            </button> */}
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-4 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border border-blue-200 dark:border-blue-800 hover:shadow-lg transition-all duration-300 hover:scale-105">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center">
-                  <BookOpen className="w-5 h-5 text-white" />
-                </div>
-                <h3 className="font-semibold text-slate-900 dark:text-white">TypeScript Mastery</h3>
-              </div>
-              <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">Learn TypeScript from basics to advanced patterns</p>
-              <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                <span>8 modules</span>
-                <span>12 hours</span>
-              </div>
+          {loadingRecommendations ? (
+            <p className="text-slate-600 dark:text-slate-400">Loading recommendations...</p>
+          ) : courseraRecommendations.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {courseraRecommendations.slice(0, 3).map((course, index) => {
+                const colors = [
+                  "from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border-blue-200 dark:border-blue-800",
+                  "from-indigo-50 to-indigo-100 dark:from-indigo-900/20 dark:to-indigo-800/20 border-indigo-200 dark:border-indigo-800",
+                  "from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border-purple-200 dark:border-purple-800",
+                ];
+                const iconColors = [
+                  "bg-blue-600",
+                  "bg-indigo-600",
+                  "bg-purple-600",
+                ];
+                const linkColors = [
+                  "text-blue-600 dark:text-blue-400",
+                  "text-indigo-600 dark:text-indigo-400",
+                  "text-purple-600 dark:text-purple-400",
+                ];
+                const currentColor = colors[index % colors.length];
+                const currentIconColor = iconColors[index % iconColors.length];
+                const currentLinkColor = linkColors[index % linkColors.length];
+
+                return (
+                  <a
+                    key={course.id}
+                    href={course.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`block p-4 rounded-xl bg-gradient-to-br ${currentColor} border hover:shadow-lg transition-all duration-300 hover:scale-105`}
+                  >
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className={`w-10 h-10 rounded-lg ${currentIconColor} flex items-center justify-center`}>
+                        <BookOpen className="w-5 h-5 text-white" />
+                      </div>
+                      <h3 className="font-semibold text-slate-900 dark:text-white flex-1">
+                        {course.title}
+                      </h3>
+                      <ExternalLink className={`w-4 h-4 ${currentLinkColor}`} />
+                    </div>
+                    <p className="text-sm text-slate-600 dark:text-slate-400 mb-3 line-clamp-2">
+                      {course.description}
+                    </p>
+                    <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                      <span>Platform: {course.platform}</span>
+                    </div>
+                  </a>
+                );
+              })}
             </div>
-            <div className="p-4 rounded-xl bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-900/20 dark:to-indigo-800/20 border border-indigo-200 dark:border-indigo-800 hover:shadow-lg transition-all duration-300 hover:scale-105">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-lg bg-indigo-600 flex items-center justify-center">
-                  <BookOpen className="w-5 h-5 text-white" />
-                </div>
-                <h3 className="font-semibold text-slate-900 dark:text-white">AWS Fundamentals</h3>
-              </div>
-              <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">Get started with cloud computing on AWS</p>
-              <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                <span>6 modules</span>
-                <span>10 hours</span>
-              </div>
-            </div>
-            <div className="p-4 rounded-xl bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border border-purple-200 dark:border-purple-800 hover:shadow-lg transition-all duration-300 hover:scale-105">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-lg bg-purple-600 flex items-center justify-center">
-                  <BookOpen className="w-5 h-5 text-white" />
-                </div>
-                <h3 className="font-semibold text-slate-900 dark:text-white">Docker & Containers</h3>
-              </div>
-              <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">Master containerization with Docker</p>
-              <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                <span>5 modules</span>
-                <span>8 hours</span>
-              </div>
-            </div>
-          </div>
+          ) : (
+            <p className="text-slate-600 dark:text-slate-400">No Coursera recommendations found for your missing skills from focused positions.</p>
+          )}
         </div>
       </div>
     </div>
   );
 }
-
