@@ -3,12 +3,15 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Type, Upload, Mic, ArrowLeft, FileText, Keyboard } from "lucide-react";
+import TagInput from "@/components/TagInput";
+import { SKILLS_LIST } from "@/lib/skills";
 
 type InputMethod = "typing" | "resume" | "voice";
 
 export default function SkillsSetupPage() {
   const [selectedMethod, setSelectedMethod] = useState<InputMethod | null>(null);
   const [isRecording, setIsRecording] = useState(false);
+  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950 flex items-center justify-center px-6 py-12">
@@ -39,13 +42,13 @@ export default function SkillsSetupPage() {
             {/* Typing Option */}
             <button
               onClick={() => setSelectedMethod("typing")}
-              className={`p-6 rounded-xl border-2 transition-all duration-300 hover:scale-105 transform ${
+              className={`p-6 rounded-xl border-2 transition-all duration-300 hover:scale-105 transform flex items-center gap-4 ${
                 selectedMethod === "typing"
                   ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-lg scale-105"
                   : "border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 hover:border-blue-400"
               }`}
             >
-              <div className={`w-12 h-12 rounded-lg flex items-center justify-center mb-4 transition-all duration-300 ${
+              <div className={`w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 ${
                 selectedMethod === "typing"
                   ? "bg-gradient-to-br from-blue-500 to-blue-600"
                   : "bg-slate-200 dark:bg-slate-600"
@@ -54,28 +57,30 @@ export default function SkillsSetupPage() {
                   selectedMethod === "typing" ? "text-white" : "text-slate-600 dark:text-slate-300"
                 }`} />
               </div>
-              <h3 className={`text-lg font-semibold mb-2 ${
-                selectedMethod === "typing"
-                  ? "text-blue-600 dark:text-blue-400"
-                  : "text-slate-900 dark:text-white"
-              }`}>
-                Type It Out
-              </h3>
-              <p className="text-sm text-slate-600 dark:text-slate-400">
-                Manually enter your skills
-              </p>
+              <div className="text-left">
+                <h3 className={`text-lg font-semibold mb-1 ${
+                  selectedMethod === "typing"
+                    ? "text-blue-600 dark:text-blue-400"
+                    : "text-slate-900 dark:text-white"
+                }`}>
+                  Type It Out
+                </h3>
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  Manually enter your skills
+                </p>
+              </div>
             </button>
 
             {/* Resume Option */}
             <button
               onClick={() => setSelectedMethod("resume")}
-              className={`p-6 rounded-xl border-2 transition-all duration-300 hover:scale-105 transform ${
+              className={`p-6 rounded-xl border-2 transition-all duration-300 hover:scale-105 transform flex items-center gap-4 ${
                 selectedMethod === "resume"
                   ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-lg scale-105"
                   : "border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 hover:border-blue-400"
               }`}
             >
-              <div className={`w-12 h-12 rounded-lg flex items-center justify-center mb-4 transition-all duration-300 ${
+              <div className={`w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 ${
                 selectedMethod === "resume"
                   ? "bg-gradient-to-br from-blue-500 to-blue-600"
                   : "bg-slate-200 dark:bg-slate-600"
@@ -84,28 +89,30 @@ export default function SkillsSetupPage() {
                   selectedMethod === "resume" ? "text-white" : "text-slate-600 dark:text-slate-300"
                 }`} />
               </div>
-              <h3 className={`text-lg font-semibold mb-2 ${
-                selectedMethod === "resume"
-                  ? "text-blue-600 dark:text-blue-400"
-                  : "text-slate-900 dark:text-white"
-              }`}>
-                Upload Resume
-              </h3>
-              <p className="text-sm text-slate-600 dark:text-slate-400">
-                Upload your resume file
-              </p>
+              <div className="text-left">
+                <h3 className={`text-lg font-semibold mb-1 ${
+                  selectedMethod === "resume"
+                    ? "text-blue-600 dark:text-blue-400"
+                    : "text-slate-900 dark:text-white"
+                }`}>
+                  Upload Resume
+                </h3>
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  Upload your resume file
+                </p>
+              </div>
             </button>
 
             {/* Voice Option */}
             <button
               onClick={() => setSelectedMethod("voice")}
-              className={`p-6 rounded-xl border-2 transition-all duration-300 hover:scale-105 transform ${
+              className={`p-6 rounded-xl border-2 transition-all duration-300 hover:scale-105 transform flex items-center gap-4 ${
                 selectedMethod === "voice"
                   ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-lg scale-105"
                   : "border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 hover:border-blue-400"
               }`}
             >
-              <div className={`w-12 h-12 rounded-lg flex items-center justify-center mb-4 transition-all duration-300 ${
+              <div className={`w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 ${
                 selectedMethod === "voice"
                   ? "bg-gradient-to-br from-blue-500 to-blue-600"
                   : "bg-slate-200 dark:bg-slate-600"
@@ -114,16 +121,18 @@ export default function SkillsSetupPage() {
                   selectedMethod === "voice" ? "text-white" : "text-slate-600 dark:text-slate-300"
                 }`} />
               </div>
-              <h3 className={`text-lg font-semibold mb-2 ${
-                selectedMethod === "voice"
-                  ? "text-blue-600 dark:text-blue-400"
-                  : "text-slate-900 dark:text-white"
-              }`}>
-                Voice Recording
-              </h3>
-              <p className="text-sm text-slate-600 dark:text-slate-400">
-                Speak your skills aloud
-              </p>
+              <div className="text-left">
+                <h3 className={`text-lg font-semibold mb-1 ${
+                  selectedMethod === "voice"
+                    ? "text-blue-600 dark:text-blue-400"
+                    : "text-slate-900 dark:text-white"
+                }`}>
+                  Voice Recording
+                </h3>
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  Speak your skills aloud
+                </p>
+              </div>
             </button>
           </div>
 
@@ -135,9 +144,11 @@ export default function SkillsSetupPage() {
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                     Enter your skills
                   </label>
-                  <textarea
-                    placeholder="Type your skills here... (e.g., JavaScript, React, Python, Project Management, etc.)"
-                    className="w-full h-64 px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 hover:border-blue-400 focus:scale-[1.01] transform resize-none"
+                  <TagInput
+                    skills={SKILLS_LIST}
+                    selectedSkills={selectedSkills}
+                    onSkillsChange={setSelectedSkills}
+                    placeholder="Type to search skills..."
                   />
                 </div>
               )}

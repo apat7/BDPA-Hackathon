@@ -54,6 +54,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signInWithGoogle = async () => {
     try {
       const provider = new GoogleAuthProvider();
+      // Add scopes to get user profile information
+      provider.addScope('profile');
+      provider.addScope('email');
+      // Set custom parameters
+      provider.setCustomParameters({
+        prompt: 'select_account'
+      });
+      
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
 
