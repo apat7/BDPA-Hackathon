@@ -1,0 +1,237 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import { Type, Upload, Mic, ArrowLeft, FileText, Keyboard } from "lucide-react";
+
+type InputMethod = "typing" | "resume" | "voice";
+
+export default function SkillsSetupPage() {
+  const [selectedMethod, setSelectedMethod] = useState<InputMethod | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950 flex items-center justify-center px-6 py-12">
+      <div className="w-full max-w-4xl">
+        {/* Back to Home Link */}
+        <Link 
+          href="/"
+          className="inline-flex items-center gap-2 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all duration-300 mb-8 animate-fade-in-down hover:scale-105"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to Home
+        </Link>
+
+        {/* Main Card */}
+        <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 p-8 animate-scale-in hover:shadow-3xl transition-all duration-500">
+          {/* Header */}
+          <div className="text-center mb-8 animate-fade-in-up">
+            <div className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent mb-2 animate-gradient">
+              Set Up Your Skills
+            </div>
+            <p className="text-slate-600 dark:text-slate-300 animate-fade-in-up animate-delay-100">
+              Choose how you'd like to add your skills
+            </p>
+          </div>
+
+          {/* Option Selector */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 animate-fade-in-up animate-delay-200">
+            {/* Typing Option */}
+            <button
+              onClick={() => setSelectedMethod("typing")}
+              className={`p-6 rounded-xl border-2 transition-all duration-300 hover:scale-105 transform ${
+                selectedMethod === "typing"
+                  ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-lg scale-105"
+                  : "border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 hover:border-blue-400"
+              }`}
+            >
+              <div className={`w-12 h-12 rounded-lg flex items-center justify-center mb-4 transition-all duration-300 ${
+                selectedMethod === "typing"
+                  ? "bg-gradient-to-br from-blue-500 to-blue-600"
+                  : "bg-slate-200 dark:bg-slate-600"
+              }`}>
+                <Keyboard className={`w-6 h-6 ${
+                  selectedMethod === "typing" ? "text-white" : "text-slate-600 dark:text-slate-300"
+                }`} />
+              </div>
+              <h3 className={`text-lg font-semibold mb-2 ${
+                selectedMethod === "typing"
+                  ? "text-blue-600 dark:text-blue-400"
+                  : "text-slate-900 dark:text-white"
+              }`}>
+                Type It Out
+              </h3>
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                Manually enter your skills
+              </p>
+            </button>
+
+            {/* Resume Option */}
+            <button
+              onClick={() => setSelectedMethod("resume")}
+              className={`p-6 rounded-xl border-2 transition-all duration-300 hover:scale-105 transform ${
+                selectedMethod === "resume"
+                  ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-lg scale-105"
+                  : "border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 hover:border-blue-400"
+              }`}
+            >
+              <div className={`w-12 h-12 rounded-lg flex items-center justify-center mb-4 transition-all duration-300 ${
+                selectedMethod === "resume"
+                  ? "bg-gradient-to-br from-blue-500 to-blue-600"
+                  : "bg-slate-200 dark:bg-slate-600"
+              }`}>
+                <Upload className={`w-6 h-6 ${
+                  selectedMethod === "resume" ? "text-white" : "text-slate-600 dark:text-slate-300"
+                }`} />
+              </div>
+              <h3 className={`text-lg font-semibold mb-2 ${
+                selectedMethod === "resume"
+                  ? "text-blue-600 dark:text-blue-400"
+                  : "text-slate-900 dark:text-white"
+              }`}>
+                Upload Resume
+              </h3>
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                Upload your resume file
+              </p>
+            </button>
+
+            {/* Voice Option */}
+            <button
+              onClick={() => setSelectedMethod("voice")}
+              className={`p-6 rounded-xl border-2 transition-all duration-300 hover:scale-105 transform ${
+                selectedMethod === "voice"
+                  ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-lg scale-105"
+                  : "border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 hover:border-blue-400"
+              }`}
+            >
+              <div className={`w-12 h-12 rounded-lg flex items-center justify-center mb-4 transition-all duration-300 ${
+                selectedMethod === "voice"
+                  ? "bg-gradient-to-br from-blue-500 to-blue-600"
+                  : "bg-slate-200 dark:bg-slate-600"
+              }`}>
+                <Mic className={`w-6 h-6 ${
+                  selectedMethod === "voice" ? "text-white" : "text-slate-600 dark:text-slate-300"
+                }`} />
+              </div>
+              <h3 className={`text-lg font-semibold mb-2 ${
+                selectedMethod === "voice"
+                  ? "text-blue-600 dark:text-blue-400"
+                  : "text-slate-900 dark:text-white"
+              }`}>
+                Voice Recording
+              </h3>
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                Speak your skills aloud
+              </p>
+            </button>
+          </div>
+
+          {/* Dynamic Content Area */}
+          {selectedMethod && (
+            <div className="animate-fade-in-up animate-delay-300">
+              {selectedMethod === "typing" && (
+                <div className="space-y-4">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Enter your skills
+                  </label>
+                  <textarea
+                    placeholder="Type your skills here... (e.g., JavaScript, React, Python, Project Management, etc.)"
+                    className="w-full h-64 px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 hover:border-blue-400 focus:scale-[1.01] transform resize-none"
+                  />
+                </div>
+              )}
+
+              {selectedMethod === "resume" && (
+                <div className="space-y-4">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Upload your resume
+                  </label>
+                  <div className="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl p-12 text-center hover:border-blue-400 transition-all duration-300 hover:bg-blue-50/50 dark:hover:bg-blue-900/10">
+                    <div className="flex flex-col items-center justify-center gap-4">
+                      <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+                        <FileText className="w-8 h-8 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
+                          Drop your resume here
+                        </p>
+                        <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+                          or click to browse
+                        </p>
+                        <button
+                          type="button"
+                          className="px-6 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 transform"
+                        >
+                          Choose File
+                        </button>
+                        <p className="text-xs text-slate-500 dark:text-slate-500 mt-3">
+                          Supported formats: PDF, DOC, DOCX (Max 10MB)
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {selectedMethod === "voice" && (
+                <div className="space-y-4">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Record your skills
+                  </label>
+                  <div className="border border-slate-300 dark:border-slate-600 rounded-xl p-8 bg-slate-50 dark:bg-slate-700/50">
+                    <div className="flex flex-col items-center justify-center gap-6">
+                      <div className={`w-24 h-24 rounded-full flex items-center justify-center transition-all duration-300 ${
+                        isRecording
+                          ? "bg-red-500 animate-pulse"
+                          : "bg-gradient-to-br from-blue-500 to-indigo-600"
+                      }`}>
+                        <Mic className={`w-12 h-12 text-white ${isRecording ? "animate-pulse" : ""}`} />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
+                          {isRecording ? "Recording..." : "Ready to record"}
+                        </p>
+                        <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+                          {isRecording 
+                            ? "Speak clearly about your skills" 
+                            : "Click the button below to start recording"}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setIsRecording(!isRecording)}
+                          className={`px-8 py-3 rounded-lg font-semibold transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 transform ${
+                            isRecording
+                              ? "bg-red-600 hover:bg-red-700 text-white"
+                              : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
+                          }`}
+                        >
+                          {isRecording ? "Stop Recording" : "Start Recording"}
+                        </button>
+                        {isRecording && (
+                          <div className="mt-4 flex items-center justify-center gap-2">
+                            <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                            <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" style={{ animationDelay: "0.2s" }}></div>
+                            <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" style={{ animationDelay: "0.4s" }}></div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Helper Text */}
+          {!selectedMethod && (
+            <div className="text-center text-slate-500 dark:text-slate-400 animate-fade-in-up animate-delay-300">
+              <p>Please select an option above to continue</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
