@@ -1,5 +1,5 @@
 import React from "react";
-import { X, Star, Building2, Target, CheckCircle, AlertCircle } from "lucide-react";
+import { X, Star, Building2, Target, CheckCircle, AlertCircle, BookOpen, ExternalLink } from "lucide-react";
 
 interface Position {
   id: string;
@@ -20,11 +20,21 @@ interface PositionWithProgress extends Position {
   isFocused?: boolean;
 }
 
+interface CourseraRecommendation {
+  id: string;
+  title: string;
+  platform: string;
+  url: string;
+  description: string;
+}
+
 interface PositionDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   position: PositionWithProgress | null;
   onToggleFocus: () => void;
+  courseraRecommendations: CourseraRecommendation[];
+  loadingRecommendations: boolean;
 }
 
 export default function PositionDetailModal({
@@ -32,6 +42,8 @@ export default function PositionDetailModal({
   onClose,
   position,
   onToggleFocus,
+  courseraRecommendations,
+  loadingRecommendations,
 }: PositionDetailModalProps) {
   if (!isOpen || !position) return null;
 
@@ -174,6 +186,45 @@ export default function PositionDetailModal({
             </div>
           </div>
 
+          {/* Coursera Recommendations */}
+          {position.missingSkills.length > 0 && (
+            <div className="pt-4 border-t border-slate-200 dark:border-slate-700">
+              <div className="flex items-center gap-2 mb-3">
+                <BookOpen className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                <h3 className="text-lg font-semibold text-blue-700 dark:text-blue-400">
+                  Coursera Recommendations
+                </h3>
+              </div>
+              {loadingRecommendations ? (
+                <p className="text-slate-600 dark:text-slate-400">Loading recommendations...</p>
+              ) : courseraRecommendations.length > 0 ? (
+                <div className="space-y-3">
+                  {courseraRecommendations.map((course) => (
+                    <a
+                      key={course.id}
+                      href={course.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block p-4 rounded-lg bg-slate-50 dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors duration-200"
+                    >
+                      <p className="font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                        {course.title} <ExternalLink className="w-4 h-4" />
+                      </p>
+                      <p className="text-sm text-slate-600 dark:text-slate-300">
+                        {course.description}
+                      </p>
+                      <span className="text-xs text-slate-500 dark:text-slate-400">
+                        Platform: {course.platform}
+                      </span>
+                    </a>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-slate-600 dark:text-slate-400">No Coursera recommendations found for missing skills.</p>
+              )}
+            </div>
+          )}
+
           {/* Focus Button */}
           <div className="pt-4 border-t border-slate-200 dark:border-slate-700">
             <button
@@ -199,4 +250,3 @@ export default function PositionDetailModal({
     </div>
   );
 }
-

@@ -5,7 +5,7 @@ export const SKILLS_LIST = [
 
   // Web Frameworks & Libraries
   "React", "Next.js", "Vue.js", "Nuxt.js", "Angular", "Svelte", "Ember.js", "jQuery", "Backbone.js", "Alpine.js",
-  "Node.js", "Express", "NestJS", "Fastify", "Django", "Flask", "FastAPI", "Spring Boot", "ASP.NET Core", "Laravel", "Ruby on Rails", "Phoenix", "Meteor", "Gatsby", "Remix","HTML", "CSS",
+  "Node.js", "Express", "NestJS", "Fastify", "Django", "Flask", "FastAPI", "Spring Boot", "ASP.NET Core", "Laravel", "Ruby on Rails", "Phoenix", "Meteor", "Gatsby", "Remix","HTML", "CSS", "Selenium", "SQLite",
 
   // Mobile Development
   "React Native", "Flutter", "Ionic", "SwiftUI", "Kotlin Multiplatform", "Xamarin", "Android SDK", "iOS SDK",
@@ -27,7 +27,7 @@ export const SKILLS_LIST = [
   "Penetration Testing", "Network Security", "Cloud Security", "Vulnerability Assessment", "Cryptography", "Ethical Hacking", "OWASP", "SIEM", "Firewalls", "Zero Trust", "Identity and Access Management", "Incident Response",
 
   // Software Engineering Concepts
-  "Object-Oriented Programming", "Functional Programming", "REST APIs", "GraphQL", "gRPC", "Microservices", "Monorepos", "Clean Architecture", "Design Patterns", "Test-Driven Development", "Continuous Integration", "Continuous Deployment", "Version Control", "Agile", "Scrum", "Kanban",
+  "Object-Oriented Programming", "Functional Programming", "REST APIs", "GraphQL", "gRPC", "Microservices", "Monorepos", "Clean Architecture", "Design Patterns", "Test-Driven Development", "Continuous Integration", "Continuous Deployment", "Version Control", "Agile", "Scrum", "Kanban", "Testing",
 
   // Tools & Technologies
   "Git", "GitHub", "GitLab", "Bitbucket", "Postman", "Insomnia", "Visual Studio Code", "IntelliJ IDEA", "PyCharm", "JIRA", "Confluence", "Slack", "Miro", "Notion",

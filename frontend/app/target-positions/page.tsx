@@ -44,6 +44,8 @@ export default function TargetPositionsPage() {
   const [focusedPositionIds, setFocusedPositionIds] = useState<Set<string>>(new Set());
   const [selectedPosition, setSelectedPosition] = useState<PositionWithProgress | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [courseraRecommendations, setCourseraRecommendations] = useState<any[]>([]);
+  const [loadingRecommendations, setLoadingRecommendations] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -59,6 +61,31 @@ export default function TargetPositionsPage() {
       fetchFocusedPositionsIds(); // Fetch focused positions
     }
   }, [user]);
+
+  const fetchCourseraRecommendations = async (skills: string[]) => {
+    setLoadingRecommendations(true);
+    try {
+      const response = await fetch("/api/coursera-recommendations", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ skills }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setCourseraRecommendations(data.recommendations);
+      } else {
+        console.error("Failed to fetch Coursera recommendations:", data.error);
+        setCourseraRecommendations([]);
+      }
+    } catch (error) {
+      console.error("Error fetching Coursera recommendations:", error);
+      setCourseraRecommendations([]);
+    } finally {
+      setLoadingRecommendations(false);
+    }
+  };
 
   const fetchAndSetUserJobs = async () => {
     if (!user) return;
@@ -272,11 +299,17 @@ export default function TargetPositionsPage() {
   const handlePositionClick = (position: PositionWithProgress) => {
     setSelectedPosition(position);
     setIsDetailModalOpen(true);
+    if (position.missingSkills.length > 0) {
+      fetchCourseraRecommendations(position.missingSkills);
+    } else {
+      setCourseraRecommendations([]);
+    }
   };
 
   const handleCloseModal = () => {
     setIsDetailModalOpen(false);
     setSelectedPosition(null);
+    setCourseraRecommendations([]); // Clear recommendations when modal closes
   };
 
   const handleToggleFocus = async (positionId: string) => {
@@ -621,6 +654,8 @@ export default function TargetPositionsPage() {
         onClose={handleCloseModal}
         position={selectedPosition}
         onToggleFocus={() => selectedPosition && handleToggleFocus(selectedPosition.id)}
+        courseraRecommendations={courseraRecommendations}
+        loadingRecommendations={loadingRecommendations}
       />
     </div>
   );
