@@ -1,3 +1,5 @@
+import { Rocket, TrendingUp, Target, Route, BarChart, User, Building2, Check } from "lucide-react";
+
 export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950">
@@ -24,8 +26,9 @@ export default function Home() {
       {/* Hero Section */}
       <section className="container mx-auto px-6 py-20 md:py-32">
         <div className="max-w-4xl mx-auto text-center">
-          <div className="inline-block px-4 py-2 mb-6 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-sm font-medium">
-            🚀 Career Readiness Platform
+          <div className="inline-flex items-center gap-2 px-4 py-2 mb-6 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-sm font-medium">
+            <Rocket className="w-4 h-4" />
+            Career Readiness Platform
           </div>
           <h1 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-slate-900 via-blue-800 to-indigo-800 dark:from-white dark:via-blue-200 dark:to-indigo-200 bg-clip-text text-transparent leading-tight">
             Bridge the Gap Between
@@ -54,8 +57,8 @@ export default function Home() {
             <div className="grid md:grid-cols-2 gap-8">
               <div className="space-y-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-bold text-xl">
-                    You
+                  <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white">
+                    <User className="w-6 h-6" />
                   </div>
                   <div className="flex-1">
                     <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
@@ -65,15 +68,24 @@ export default function Home() {
                   </div>
                 </div>
                 <div className="space-y-2 pl-4 border-l-2 border-blue-200 dark:border-blue-800">
-                  <div className="text-sm text-slate-600 dark:text-slate-400">✓ JavaScript</div>
-                  <div className="text-sm text-slate-600 dark:text-slate-400">✓ React</div>
-                  <div className="text-sm text-slate-600 dark:text-slate-400">✓ Node.js</div>
+                  <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                    <Check className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                    JavaScript
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                    <Check className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                    React
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                    <Check className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                    Node.js
+                  </div>
                 </div>
               </div>
               <div className="space-y-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center text-white font-bold text-xl">
-                    Market
+                  <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center text-white">
+                    <Building2 className="w-6 h-6" />
                   </div>
                   <div className="flex-1">
                     <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
@@ -83,16 +95,27 @@ export default function Home() {
                   </div>
                 </div>
                 <div className="space-y-2 pl-4 border-l-2 border-indigo-200 dark:border-indigo-800">
-                  <div className="text-sm text-slate-600 dark:text-slate-400">✓ TypeScript</div>
-                  <div className="text-sm text-slate-600 dark:text-slate-400">✓ Next.js</div>
-                  <div className="text-sm text-slate-600 dark:text-slate-400">✓ AWS</div>
+                  <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                    <Check className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                    TypeScript
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                    <Check className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                    Next.js
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                    <Check className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                    AWS
+                  </div>
                 </div>
               </div>
             </div>
             <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">
               <div className="flex items-center justify-center gap-2 text-indigo-600 dark:text-indigo-400 font-semibold">
-                <span>📊 Gap Analysis: 25%</span>
+                <BarChart className="w-5 h-5" />
+                <span>Gap Analysis: 25%</span>
                 <span className="text-slate-400">→</span>
+                <Route className="w-5 h-5 text-green-600 dark:text-green-400" />
                 <span className="text-green-600 dark:text-green-400">Personalized Learning Path</span>
               </div>
             </div>
@@ -112,8 +135,8 @@ export default function Home() {
         </div>
         <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
           <div className="p-8 rounded-2xl bg-white/60 dark:bg-slate-800/60 backdrop-blur-xl border border-slate-200 dark:border-slate-700 hover:shadow-xl transition-all hover:scale-105">
-            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-2xl mb-4">
-              📈
+            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center mb-4">
+              <TrendingUp className="w-7 h-7 text-white" />
             </div>
             <h3 className="text-2xl font-bold mb-3 text-slate-900 dark:text-white">Real-Time Analysis</h3>
             <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
@@ -121,8 +144,8 @@ export default function Home() {
             </p>
           </div>
           <div className="p-8 rounded-2xl bg-white/60 dark:bg-slate-800/60 backdrop-blur-xl border border-slate-200 dark:border-slate-700 hover:shadow-xl transition-all hover:scale-105">
-            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center text-2xl mb-4">
-              🎯
+            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center mb-4">
+              <Target className="w-7 h-7 text-white" />
             </div>
             <h3 className="text-2xl font-bold mb-3 text-slate-900 dark:text-white">Gap Identification</h3>
             <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
@@ -130,8 +153,8 @@ export default function Home() {
             </p>
           </div>
           <div className="p-8 rounded-2xl bg-white/60 dark:bg-slate-800/60 backdrop-blur-xl border border-slate-200 dark:border-slate-700 hover:shadow-xl transition-all hover:scale-105">
-            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center text-2xl mb-4">
-              🛤️
+            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center mb-4">
+              <Route className="w-7 h-7 text-white" />
             </div>
             <h3 className="text-2xl font-bold mb-3 text-slate-900 dark:text-white">Learning Paths</h3>
             <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
