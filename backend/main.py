@@ -363,12 +363,52 @@ async def upload_resume(resume: UploadFile = File(...)):
         with open(file_path, "wb") as f:
             f.write(content)
         
-        return {
-            "message": "Resume saved successfully",
-            "filename": filename,
-            "file_path": file_path,
-            "size": len(content)
-        }
+        # Analyze resume and extract skills
+        try:
+            from resume_analyzer import analyze_resume, save_skills_to_file
+            
+            # Analyze the resume
+            skills_with_experience = analyze_resume(file_path)
+            
+            # Generate output filename for skills txt file (save in backend folder)
+            skills_filename = os.path.splitext(filename)[0] + "_skills.txt"
+            # Save in the backend directory (where main.py is located)
+            backend_dir = os.path.dirname(os.path.abspath(__file__))
+            skills_file_path = os.path.join(backend_dir, skills_filename)
+            
+            # Save skills to txt file
+            save_skills_to_file(skills_with_experience, skills_file_path)
+            
+            # Prepare skills list for response
+            skills_list = []
+            for skill, experience in skills_with_experience:
+                if experience:
+                    skills_list.append(f"{skill} - {experience}")
+                else:
+                    skills_list.append(skill)
+            
+            return {
+                "message": "Resume saved and analyzed successfully",
+                "filename": filename,
+                "file_path": file_path,
+                "size": len(content),
+                "skills_file": skills_filename,
+                "skills_file_path": skills_file_path,
+                "skills_found": len(skills_with_experience),
+                "skills": skills_list
+            }
+        except Exception as analysis_error:
+            # If analysis fails, still return success for file upload
+            # but include error in response
+            return {
+                "message": "Resume saved successfully, but analysis failed",
+                "filename": filename,
+                "file_path": file_path,
+                "size": len(content),
+                "analysis_error": str(analysis_error),
+                "warning": "Skills extraction failed, but resume was saved"
+            }
+        
     except HTTPException:
         raise
     except Exception as e:

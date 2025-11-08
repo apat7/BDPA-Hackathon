@@ -10,3 +10,6 @@ pytranscript==0.3.0
 ffmpeg-python==0.2.0
 deep-translator==1.11.4
 typed-argument-parser==1.11.0
+python-multipart==0.0.6
+pdfplumber==0.11.0
+python-docx==1.1.0
